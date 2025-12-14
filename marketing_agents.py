@@ -472,7 +472,9 @@ async def interactive_main():
     print("  - 'Publier sur les médias sociaux un projet open source'")
     print("  - 'Analyser les performances de notre campagne marketing'")
     print("=" * 60)
-    
+
+    while True:
+        try:
             user_input = input("\n> ").strip()
             
             if user_input.lower() in ["quit", "exit", "q"]:

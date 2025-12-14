@@ -72,7 +72,7 @@ def create_default_config() -> AgentConfigManager:
     
     main_supervisor_config = AgentConfig(
         name="main_supervisor",
-        model_name="meta-llama/llama-3.3-70b-instruct:free",  # Modèle puissant pour l'orchestration
+        model_name="meta-llama/llama-3.3-70b-instruct:free",  # Powerful model for orchestration
         api_key_env_var="OPENROUTER_API_KEY",
         base_url="https://openrouter.ai/api/v1",
         headers={
@@ -80,13 +80,18 @@ def create_default_config() -> AgentConfigManager:
             "X-Title": "Marketing Main Supervisor"
         },
         system_prompt=(
-            "Vous êtes le superviseur principal du système marketing hiérarchique. "
-            "Vous gérez trois équipes spécialisées : "
-            "1. research_team : effectue des recherches et analyses marketing "
-            "2. content_team : crée du contenu marketing "
-            "3. social_media_team : gère les publications sur les médias sociaux "
-            "Analysez la demande de l'utilisateur et assignez-la à l'équipe appropriée. "
-            "Vous pouvez également orchestrer des workflows complexes impliquant plusieurs équipes."
+            "You are the main supervisor of the hierarchical marketing system. "
+            "You manage specialized teams: "
+            "1. research_team: performs marketing research and analysis "
+            "2. content_team: creates marketing content "
+            "3. social_media_team: manages social media publications "
+            "Analyze the user's request and assign it to the appropriate team. "
+            "You can also orchestrate complex workflows involving multiple teams. "
+            "\n\nIMPORTANT: You must output your routing decision in valid JSON format with the following structure: "
+            "{\"next_node\": \"team_name\", \"reasoning\": \"explanation\", \"confidence\": 0.95, \"should_terminate\": false} "
+            "Where next_node must be one of: research_team, content_team, social_media_team, or FINISH. "
+            "confidence is a number between 0 and 1 indicating your confidence in the decision. "
+            "should_terminate is true only if the task is complete and no further processing is needed."
         )
     )
     config_manager.add_agent(main_supervisor_config)
@@ -97,7 +102,7 @@ def create_default_config() -> AgentConfigManager:
     
     research_team_supervisor_config = AgentConfig(
         name="research_team_supervisor",
-        model_name="amazon/nova-2-lite-v1:free",  # Modèle pour la recherche
+        model_name="amazon/nova-2-lite-v1:free",  # Model for research
         api_key_env_var="OPENROUTER_API_KEY",
         base_url="https://openrouter.ai/api/v1",
         headers={
@@ -105,11 +110,16 @@ def create_default_config() -> AgentConfigManager:
             "X-Title": "Research Team Supervisor"
         },
         system_prompt=(
-            "Vous êtes le superviseur de l'équipe de recherche marketing. "
-            "Vous gérez deux spécialistes : "
-            "1. web_researcher : effectue des recherches web sur les tendances et concurrents "
-            "2. data_analyst : analyse les données et métriques "
-            "Assignez les tâches appropriées à chaque spécialiste."
+            "You are the supervisor of the marketing research team. "
+            "You manage two specialists: "
+            "1. web_researcher: performs web research on trends and competitors "
+            "2. data_analyst: analyzes data and metrics "
+            "Assign appropriate tasks to each specialist. "
+            "\n\nIMPORTANT: You must output your routing decision in valid JSON format with the following structure: "
+            "{\"next_node\": \"agent_name\", \"reasoning\": \"explanation\", \"confidence\": 0.95, \"should_terminate\": false} "
+            "Where next_node must be one of: web_researcher, data_analyst, or FINISH. "
+            "confidence is a number between 0 and 1 indicating your confidence in the decision. "
+            "should_terminate is true only if the task is complete and no further processing is needed."
         )
     )
     config_manager.add_agent(research_team_supervisor_config)
@@ -147,7 +157,7 @@ def create_default_config() -> AgentConfigManager:
     
     content_team_supervisor_config = AgentConfig(
         name="content_team_supervisor",
-        model_name="amazon/nova-2-lite-v1:free",  # Modèle pour la création de contenu
+        model_name="amazon/nova-2-lite-v1:free",  # Model for content creation
         api_key_env_var="OPENROUTER_API_KEY",
         base_url="https://openrouter.ai/api/v1",
         headers={
@@ -155,12 +165,17 @@ def create_default_config() -> AgentConfigManager:
             "X-Title": "Content Team Supervisor"
         },
         system_prompt=(
-            "Vous êtes le superviseur de l'équipe de création de contenu marketing. "
-            "Vous gérez trois spécialistes : "
-            "1. content_writer : rédige du contenu textuel "
-            "2. seo_specialist : optimise le contenu pour le SEO "
-            "3. visual_designer : crée des éléments visuels "
-            "Assignez les tâches appropriées à chaque spécialiste."
+            "You are the supervisor of the marketing content creation team. "
+            "You manage three specialists: "
+            "1. content_writer: writes textual content "
+            "2. seo_specialist: optimizes content for SEO "
+            "3. visual_designer: creates visual elements "
+            "Assign appropriate tasks to each specialist. "
+            "\n\nIMPORTANT: You must output your routing decision in valid JSON format with the following structure: "
+            "{\"next_node\": \"agent_name\", \"reasoning\": \"explanation\", \"confidence\": 0.95, \"should_terminate\": false} "
+            "Where next_node must be one of: content_writer, seo_specialist, visual_designer, or FINISH. "
+            "confidence is a number between 0 and 1 indicating your confidence in the decision. "
+            "should_terminate is true only if the task is complete and no further processing is needed."
         )
     )
     config_manager.add_agent(content_team_supervisor_config)
@@ -211,7 +226,7 @@ def create_default_config() -> AgentConfigManager:
     
     social_media_team_supervisor_config = AgentConfig(
         name="social_media_team_supervisor",
-        model_name="amazon/nova-2-lite-v1:free",  # Modèle pour les médias sociaux
+        model_name="amazon/nova-2-lite-v1:free",  # Model for social media
         api_key_env_var="OPENROUTER_API_KEY",
         base_url="https://openrouter.ai/api/v1",
         headers={
@@ -219,12 +234,17 @@ def create_default_config() -> AgentConfigManager:
             "X-Title": "Social Media Team Supervisor"
         },
         system_prompt=(
-            "Vous êtes le superviseur de l'équipe des médias sociaux. "
-            "Vous gérez trois spécialistes : "
-            "1. linkedin_manager : gère les publications LinkedIn "
-            "2. twitter_manager : gère les publications Twitter "
-            "3. analytics_tracker : suit les performances des publications "
-            "Assignez les tâches appropriées à chaque spécialiste."
+            "You are the supervisor of the social media team. "
+            "You manage three specialists: "
+            "1. linkedin_manager: manages LinkedIn publications "
+            "2. twitter_manager: manages Twitter publications "
+            "3. analytics_tracker: tracks publication performance "
+            "Assign appropriate tasks to each specialist. "
+            "\n\nIMPORTANT: You must output your routing decision in valid JSON format with the following structure: "
+            "{\"next_node\": \"agent_name\", \"reasoning\": \"explanation\", \"confidence\": 0.95, \"should_terminate\": false} "
+            "Where next_node must be one of: linkedin_manager, twitter_manager, analytics_tracker, or FINISH. "
+            "confidence is a number between 0 and 1 indicating your confidence in the decision. "
+            "should_terminate is true only if the task is complete and no further processing is needed."
         )
     )
     config_manager.add_agent(social_media_team_supervisor_config)
