@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Centralized configuration for marketing agents.
+Centralized configuration for marketing agents with hierarchical team structure.
 This file defines the configuration for each agent including models, API keys, and settings.
 """
 
@@ -8,12 +8,16 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 @dataclass
 class AgentConfig:
     """Configuration for a single agent"""
     name: str
-    model_name: str = "gpt-4o"  # Default model
+    model_name: str = "meta-llama/llama-3.3-70b-instruct:free"  # Default model
     api_key_env_var: str = "OPENROUTER_API_KEY"  # Default API key environment variable
     base_url: str = "https://openrouter.ai/api/v1"  # Default base URL
     headers: Optional[Dict[str, str]] = None
@@ -57,82 +61,243 @@ class AgentConfigManager:
         """Get all agent configurations"""
         return self.agents
 
-# Default configuration for marketing agents
+# Default configuration for hierarchical marketing agents
 def create_default_config() -> AgentConfigManager:
-    """Create default configuration for marketing agents"""
+    """Create default configuration for hierarchical marketing agents"""
     config_manager = AgentConfigManager()
 
-    # Research Agent - Using OpenRouter with specific model
-    research_config = AgentConfig(
-        name="research_agent",
-        model_name="openai/gpt-oss-120b:free",  # Different model for research
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
-        headers={
-            "HTTP-Referer": "https://marketing-research-app.com",
-            "X-Title": "Marketing Research Agent"
-        },
-        system_prompt="Tu es un assistant de recherche. Effectue des recherches détaillées sur les sujets demandés."
-    )
-
-    # Content Agent - Using a different provider (example: OpenAI)
-    content_config = AgentConfig(
-        name="content_agent",
-        model_name="openai/gpt-oss-120b:free",  # Different model for content creation
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
-        headers={
-            "HTTP-Referer": "https://content-creator-app.com",
-            "X-Title": "Content Creation Agent"
-        },
-        system_prompt="Tu es un assistant de création de contenu. Crée des posts et articles marketing."
-    )
-
-    # Social Media Agent - Using OpenRouter with another model
-    social_media_config = AgentConfig(
-        name="social_media_agent",
-        model_name="openai/gpt-oss-120b:free",  # Different model for social media
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
-        headers={
-            "HTTP-Referer": "https://social-media-manager.com",
-            "X-Title": "Social Media Agent"
-        },
-        system_prompt="Tu es un assistant de gestion des réseaux sociaux. Publie et gère les posts."
-    )
-
-    # Analytics Agent - Using a local/fast model for analytics
-    analytics_config = AgentConfig(
-        name="analytics_agent",
-        model_name="openai/gpt-oss-120b:free",  # Faster model for analytics
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
-        headers={
-            "HTTP-Referer": "https://analytics-dashboard.com",
-            "X-Title": "Analytics Agent"
-        },
-        system_prompt="Tu es un assistant d'analyse de performance. Analyse les métriques marketing."
-    )
-
-    config_manager.add_agent(research_config)
-    config_manager.add_agent(content_config)
-    config_manager.add_agent(social_media_config)
-    config_manager.add_agent(analytics_config)
-
-    # Supervisor Agent - The "chef" that orchestrates everything
-    supervisor_config = AgentConfig(
-        name="supervisor",
-        model_name="openai/gpt-oss-120b:free",  # Faster model for analytics
+    # ============================================================================
+    # Superviseur Principal (Niveau le plus élevé)
+    # ============================================================================
+    
+    main_supervisor_config = AgentConfig(
+        name="main_supervisor",
+        model_name="meta-llama/llama-3.3-70b-instruct:free",  # Modèle puissant pour l'orchestration
         api_key_env_var="OPENROUTER_API_KEY",
         base_url="https://openrouter.ai/api/v1",
         headers={
             "HTTP-Referer": "https://marketing-orchestrator.com",
-            "X-Title": "Marketing Supervisor Agent"
+            "X-Title": "Marketing Main Supervisor"
         },
-        system_prompt="Tu es le superviseur principal. Analyse les demandes marketing de haut niveau, décompose-les en sous-tâches et assigne-les aux agents spécialisés appropriés."
+        system_prompt=(
+            "Vous êtes le superviseur principal du système marketing hiérarchique. "
+            "Vous gérez trois équipes spécialisées : "
+            "1. research_team : effectue des recherches et analyses marketing "
+            "2. content_team : crée du contenu marketing "
+            "3. social_media_team : gère les publications sur les médias sociaux "
+            "Analysez la demande de l'utilisateur et assignez-la à l'équipe appropriée. "
+            "Vous pouvez également orchestrer des workflows complexes impliquant plusieurs équipes."
+        )
     )
+    config_manager.add_agent(main_supervisor_config)
 
-    config_manager.add_agent(supervisor_config)
+    # ============================================================================
+    # Équipe de Recherche (Superviseur et Agents)
+    # ============================================================================
+    
+    research_team_supervisor_config = AgentConfig(
+        name="research_team_supervisor",
+        model_name="amazon/nova-2-lite-v1:free",  # Modèle pour la recherche
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://research-team.com",
+            "X-Title": "Research Team Supervisor"
+        },
+        system_prompt=(
+            "Vous êtes le superviseur de l'équipe de recherche marketing. "
+            "Vous gérez deux spécialistes : "
+            "1. web_researcher : effectue des recherches web sur les tendances et concurrents "
+            "2. data_analyst : analyse les données et métriques "
+            "Assignez les tâches appropriées à chaque spécialiste."
+        )
+    )
+    config_manager.add_agent(research_team_supervisor_config)
+
+    # Agents de l'équipe de recherche
+    web_researcher_config = AgentConfig(
+        name="web_researcher",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://web-researcher.com",
+            "X-Title": "Web Researcher Agent"
+        },
+        system_prompt="Vous êtes un chercheur web spécialisé en marketing. Effectuez des recherches approfondies sur les tendances, concurrents et opportunités."
+    )
+    config_manager.add_agent(web_researcher_config)
+
+    data_analyst_config = AgentConfig(
+        name="data_analyst",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://data-analyst.com",
+            "X-Title": "Data Analyst Agent"
+        },
+        system_prompt="Vous êtes un analyste de données marketing. Analysez les métriques, performances et données pour fournir des insights."
+    )
+    config_manager.add_agent(data_analyst_config)
+
+    # ============================================================================
+    # Équipe de Création de Contenu (Superviseur et Agents)
+    # ============================================================================
+    
+    content_team_supervisor_config = AgentConfig(
+        name="content_team_supervisor",
+        model_name="amazon/nova-2-lite-v1:free",  # Modèle pour la création de contenu
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://content-team.com",
+            "X-Title": "Content Team Supervisor"
+        },
+        system_prompt=(
+            "Vous êtes le superviseur de l'équipe de création de contenu marketing. "
+            "Vous gérez trois spécialistes : "
+            "1. content_writer : rédige du contenu textuel "
+            "2. seo_specialist : optimise le contenu pour le SEO "
+            "3. visual_designer : crée des éléments visuels "
+            "Assignez les tâches appropriées à chaque spécialiste."
+        )
+    )
+    config_manager.add_agent(content_team_supervisor_config)
+
+    # Agents de l'équipe de contenu
+    content_writer_config = AgentConfig(
+        name="content_writer",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://content-writer.com",
+            "X-Title": "Content Writer Agent"
+        },
+        system_prompt="Vous êtes un rédacteur de contenu marketing. Créez des posts, articles et communications engageants pour promouvoir des projets."
+    )
+    config_manager.add_agent(content_writer_config)
+
+    seo_specialist_config = AgentConfig(
+        name="seo_specialist",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://seo-specialist.com",
+            "X-Title": "SEO Specialist Agent"
+        },
+        system_prompt="Vous êtes un spécialiste SEO. Optimisez le contenu pour les moteurs de recherche et améliorez la visibilité."
+    )
+    config_manager.add_agent(seo_specialist_config)
+
+    visual_designer_config = AgentConfig(
+        name="visual_designer",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://visual-designer.com",
+            "X-Title": "Visual Designer Agent"
+        },
+        system_prompt="Vous êtes un designer visuel. Créez des éléments visuels attrayants pour le marketing (graphiques, images, présentations)."
+    )
+    config_manager.add_agent(visual_designer_config)
+
+    # ============================================================================
+    # Équipe des Médias Sociaux (Superviseur et Agents)
+    # ============================================================================
+    
+    social_media_team_supervisor_config = AgentConfig(
+        name="social_media_team_supervisor",
+        model_name="amazon/nova-2-lite-v1:free",  # Modèle pour les médias sociaux
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://social-media-team.com",
+            "X-Title": "Social Media Team Supervisor"
+        },
+        system_prompt=(
+            "Vous êtes le superviseur de l'équipe des médias sociaux. "
+            "Vous gérez trois spécialistes : "
+            "1. linkedin_manager : gère les publications LinkedIn "
+            "2. twitter_manager : gère les publications Twitter "
+            "3. analytics_tracker : suit les performances des publications "
+            "Assignez les tâches appropriées à chaque spécialiste."
+        )
+    )
+    config_manager.add_agent(social_media_team_supervisor_config)
+
+    # Agents de l'équipe des médias sociaux
+    linkedin_manager_config = AgentConfig(
+        name="linkedin_manager",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://linkedin-manager.com",
+            "X-Title": "LinkedIn Manager Agent"
+        },
+        system_prompt="Vous êtes un gestionnaire LinkedIn. Créez et gérez des publications professionnelles sur LinkedIn pour promouvoir des projets."
+    )
+    config_manager.add_agent(linkedin_manager_config)
+
+    twitter_manager_config = AgentConfig(
+        name="twitter_manager",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://twitter-manager.com",
+            "X-Title": "Twitter Manager Agent"
+        },
+        system_prompt="Vous êtes un gestionnaire Twitter. Créez et gérez des publications sur Twitter pour engager la communauté."
+    )
+    config_manager.add_agent(twitter_manager_config)
+
+    analytics_tracker_config = AgentConfig(
+        name="analytics_tracker",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://analytics-tracker.com",
+            "X-Title": "Analytics Tracker Agent"
+        },
+        system_prompt="Vous êtes un tracker analytique. Suivez et analysez les performances des publications sur les médias sociaux."
+    )
+    config_manager.add_agent(analytics_tracker_config)
+
+    # ============================================================================
+    # Agents de Support (Optionnels)
+    # ============================================================================
+    
+    strategy_agent_config = AgentConfig(
+        name="strategy_agent",
+        model_name="meta-llama/llama-3.3-70b-instruct:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://strategy-agent.com",
+            "X-Title": "Strategy Agent"
+        },
+        system_prompt="Vous êtes un agent de stratégie marketing. Développez des stratégies complètes pour la promotion de projets."
+    )
+    config_manager.add_agent(strategy_agent_config)
+
+    community_manager_config = AgentConfig(
+        name="community_manager",
+        model_name="amazon/nova-2-lite-v1:free",
+        api_key_env_var="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        headers={
+            "HTTP-Referer": "https://community-manager.com",
+            "X-Title": "Community Manager Agent"
+        },
+        system_prompt="Vous êtes un gestionnaire de communauté. Engagez et interagissez avec la communauté pour promouvoir l'adoption de projets."
+    )
+    config_manager.add_agent(community_manager_config)
 
     return config_manager
 
