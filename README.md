@@ -60,13 +60,28 @@ uv run python test_new_implementation.py
 
 ### 4. Running the System
 
+#### Command Line Interface
+```bash
+# Run a single task
+uv run python main.py "Research AI marketing trends"
+
+# Interactive mode
+uv run python main.py --interactive
+
+# Help
+uv run python main.py --help
+```
+
+#### Programmatic Usage
 ```python
 from app.agents.hierarchical_marketing import create_marketing_workflow
+from langchain_core.messages import HumanMessage
 
 workflow = create_marketing_workflow()
 result = await workflow.ainvoke({
     "messages": [HumanMessage(content="Research AI marketing trends")],
-    "iteration_count": 0
+    "iteration_count": 0,
+    "workflow_status": "running"
 })
 ```
 

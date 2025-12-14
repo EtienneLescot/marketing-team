@@ -73,7 +73,7 @@ def create_research_team(config: AgentConfig) -> StateGraph:
         """Research team supervisor with LLM routing"""
         # Check iteration limit
         if state.get("iteration_count", 0) >= 2:
-            return Command(goto=END)
+            return Command(goto=END, update={"team_status": "completed"})
         
         try:
             # Get routing decision
@@ -87,6 +87,7 @@ def create_research_team(config: AgentConfig) -> StateGraph:
             }
             
             if decision.should_terminate or decision.next_node == "FINISH":
+                update_data["team_status"] = "completed"
                 return Command(goto=END, update=update_data)
             
             return Command(goto=decision.next_node, update=update_data)
@@ -235,7 +236,7 @@ Suggested metrics to track:
     def _research_fallback_routing(state: TeamState) -> Command[Literal["web_researcher", "data_analyst", "__end__"]]:
         """Fallback routing for research team"""
         if state.get("iteration_count", 0) >= 2:
-            return Command(goto=END)
+            return Command(goto=END, update={"team_status": "completed"})
         
         last_message = state["messages"][-1].content.lower() if state["messages"] else ""
         
@@ -546,7 +547,7 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
         """Main supervisor with LLM routing"""
         # Check iteration limit
         if state.get("iteration_count", 0) >= 3:
-            return Command(goto=END)
+            return Command(goto=END, update={"workflow_status": "completed"})
         
         # Check for message nesting
         if detect_message_nesting(state["messages"]):
@@ -567,6 +568,7 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
             }
             
             if decision.should_terminate or decision.next_node == "FINISH":
+                update_data["workflow_status"] = "completed"
                 return Command(goto=END, update=update_data)
             
             return Command(goto=decision.next_node, update=update_data)
@@ -579,7 +581,7 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
     def _main_fallback_routing(state: EnhancedMarketingState) -> Command[Literal["research_team", "content_team", "__end__"]]:
         """Fallback routing for main supervisor"""
         if state.get("iteration_count", 0) >= 3:
-            return Command(goto=END)
+            return Command(goto=END, update={"workflow_status": "completed"})
         
         last_message = state["messages"][-1].content.lower() if state["messages"] else ""
         
@@ -592,6 +594,11 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
             # Default to research team for first iteration
             if state.get("iteration_count", 0) >= 1:
                 goto = END
+                return Command(goto=END, update={
+                    "iteration_count": state.get("iteration_count", 0) + 1,
+                    "current_team": None,
+                    "workflow_status": "completed"
+                })
             else:
                 goto = "research_team"
         
