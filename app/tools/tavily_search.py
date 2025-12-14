@@ -4,6 +4,7 @@ Tavily search API integration for web research.
 """
 
 import os
+import json
 import aiohttp
 import asyncio
 from typing import Dict, Any, List, Optional
@@ -99,27 +100,65 @@ class TavilySearchTool(BaseTool):
                     headers=headers,
                     timeout=30
                 ) as response:
+                    # Get response text first to handle both JSON and text responses
+                    response_text = await response.text()
+                    
                     if response.status == 200:
-                        data = await response.json()
-                        
-                        # Calculate cost and duration
-                        duration = (datetime.now() - start_time).total_seconds() * 1000
-                        self.total_duration += duration
-                        self.total_cost += self.metadata.cost_per_call
-                        
-                        # Format results
-                        result = self._format_results(data, query)
-                        
-                        # Cache the result
-                        self.cache[cache_key] = {
-                            "result": result,
-                            "cached_at": datetime.now()
-                        }
-                        
-                        # Clean old cache entries
-                        self._clean_cache()
-                        
-                        return result
+                        try:
+                            # Try to parse as JSON
+                            data = json.loads(response_text)
+                            
+                            # Validate that data is a dictionary
+                            if not isinstance(data, dict):
+                                self.error_count += 1
+                                raise APIError(
+                                    message=f"Tavily API returned non-dict response: {type(data)}",
+                                    component="TavilySearchTool",
+                                    operation="execute",
+                                    context={
+                                        "query": query,
+                                        "status_code": response.status,
+                                        "response_type": str(type(data)),
+                                        "response_preview": str(data)[:200]
+                                    },
+                                    suggested_action="Check Tavily API documentation or contact support",
+                                    retryable=True
+                                )
+                            
+                            # Calculate cost and duration
+                            duration = (datetime.now() - start_time).total_seconds() * 1000
+                            self.total_duration += duration
+                            self.total_cost += self.metadata.cost_per_call
+                            
+                            # Format results
+                            result = self._format_results(data, query)
+                            
+                            # Cache the result
+                            self.cache[cache_key] = {
+                                "result": result,
+                                "cached_at": datetime.now()
+                            }
+                            
+                            # Clean old cache entries
+                            self._clean_cache()
+                            
+                            return result
+                            
+                        except json.JSONDecodeError:
+                            # If not JSON, treat as text response
+                            self.error_count += 1
+                            raise APIError(
+                                message=f"Tavily API returned non-JSON response: {response_text[:200]}",
+                                component="TavilySearchTool",
+                                operation="execute",
+                                context={
+                                    "query": query,
+                                    "status_code": response.status,
+                                    "response": response_text[:500]
+                                },
+                                suggested_action="Check Tavily API status or contact support",
+                                retryable=True
+                            )
                     
                     elif response.status == 429:
                         # Rate limit exceeded
@@ -130,7 +169,8 @@ class TavilySearchTool(BaseTool):
                             operation="execute",
                             context={
                                 "query": query,
-                                "status_code": response.status
+                                "status_code": response.status,
+                                "response": response_text[:500]
                             },
                             suggested_action="Wait before retrying or upgrade your Tavily plan",
                             retryable=True
@@ -139,14 +179,14 @@ class TavilySearchTool(BaseTool):
                     elif response.status == 401:
                         # Authentication error
                         self.error_count += 1
-                        error_text = await response.text()
                         raise APIError(
-                            message=f"Tavily API authentication failed: {error_text}",
+                            message=f"Tavily API authentication failed: {response_text}",
                             component="TavilySearchTool",
                             operation="execute",
                             context={
                                 "query": query,
-                                "status_code": response.status
+                                "status_code": response.status,
+                                "response": response_text[:500]
                             },
                             suggested_action="Check your TAVILY_API_KEY environment variable",
                             retryable=False
@@ -155,15 +195,14 @@ class TavilySearchTool(BaseTool):
                     else:
                         # Other API error
                         self.error_count += 1
-                        error_text = await response.text()
                         raise APIError(
-                            message=f"Tavily API error: {response.status} - {error_text}",
+                            message=f"Tavily API error: {response.status} - {response_text}",
                             component="TavilySearchTool",
                             operation="execute",
                             context={
                                 "query": query,
                                 "status_code": response.status,
-                                "error": error_text[:500]
+                                "error": response_text[:500]
                             },
                             retryable=True
                         )
@@ -192,41 +231,70 @@ class TavilySearchTool(BaseTool):
     
     def _format_results(self, data: Dict[str, Any], query: str) -> Dict[str, Any]:
         """Format search results"""
-        results = data.get("results", [])
-        answer = data.get("answer", "")
-        images = data.get("images", [])
-        
-        # Format individual results
-        formatted_results = []
-        for i, result in enumerate(results[:10]):  # Limit to 10 results
-            formatted_results.append({
-                "title": result.get("title", ""),
-                "url": result.get("url", ""),
-                "content": result.get("content", "")[:500],  # Truncate content
-                "score": result.get("score", 0.0),
-                "published_date": result.get("published_date"),
-                "rank": i + 1
-            })
-        
-        # Format images
-        formatted_images = []
-        for image in images[:5]:  # Limit to 5 images
-            formatted_images.append({
-                "url": image.get("url", ""),
-                "title": image.get("title", ""),
-                "source": image.get("source", "")
-            })
-        
-        return {
-            "query": query,
-            "answer": answer,
-            "total_results": len(results),
-            "results": formatted_results,
-            "images": formatted_images,
-            "search_timestamp": datetime.now().isoformat(),
-            "source": "tavily",
-            "cached": False
-        }
+        try:
+            # Safely get values with type checking
+            if not isinstance(data, dict):
+                raise ValueError(f"Expected dict but got {type(data)}: {str(data)[:200]}")
+            
+            results = data.get("results", [])
+            answer = data.get("answer", "")
+            images = data.get("images", [])
+            
+            # Ensure results is a list
+            if not isinstance(results, list):
+                results = []
+            
+            # Ensure images is a list
+            if not isinstance(images, list):
+                images = []
+            
+            # Format individual results
+            formatted_results = []
+            for i, result in enumerate(results[:10]):  # Limit to 10 results
+                if isinstance(result, dict):
+                    formatted_results.append({
+                        "title": result.get("title", ""),
+                        "url": result.get("url", ""),
+                        "content": str(result.get("content", ""))[:500],  # Truncate content
+                        "score": float(result.get("score", 0.0)),
+                        "published_date": result.get("published_date"),
+                        "rank": i + 1
+                    })
+            
+            # Format images
+            formatted_images = []
+            for image in images[:5]:  # Limit to 5 images
+                if isinstance(image, dict):
+                    formatted_images.append({
+                        "url": image.get("url", ""),
+                        "title": image.get("title", ""),
+                        "source": image.get("source", "")
+                    })
+            
+            return {
+                "query": query,
+                "answer": str(answer),
+                "total_results": len(formatted_results),
+                "results": formatted_results,
+                "images": formatted_images,
+                "search_timestamp": datetime.now().isoformat(),
+                "source": "tavily",
+                "cached": False
+            }
+            
+        except Exception as e:
+            # If formatting fails, return a minimal result with error info
+            return {
+                "query": query,
+                "answer": f"Error formatting results: {str(e)[:200]}",
+                "total_results": 0,
+                "results": [],
+                "images": [],
+                "search_timestamp": datetime.now().isoformat(),
+                "source": "tavily",
+                "cached": False,
+                "error": str(e)
+            }
     
     def _clean_cache(self):
         """Clean old cache entries"""

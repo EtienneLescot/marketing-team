@@ -217,22 +217,21 @@ Example output format:
         next_node = "FINISH"  # Default to finish
         
         # Check for keywords to determine routing
-        research_keywords = ['research', 'analyze', 'data', 'market', 'trend', 'competitor']
-        content_keywords = ['content', 'write', 'blog', 'article', 'create', 'draft']
-        social_keywords = ['social', 'media', 'post', 'tweet', 'linkedin', 'twitter']
+        research_keywords = ['research', 'analyze', 'data', 'market', 'trend', 'competitor', 'study', 'investigate']
+        content_keywords = ['content', 'write', 'blog', 'article', 'create', 'draft', 'post', 'seo', 'optimize']
         
         if any(keyword in task_lower for keyword in research_keywords):
-            # Route to first available research node
-            research_nodes = [n for n in self.available_nodes if 'research' in n.lower() or 'analyst' in n.lower()]
-            next_node = research_nodes[0] if research_nodes else self.available_nodes[0]
+            # Route to research_team if available, otherwise first available node
+            if "research_team" in self.available_nodes:
+                next_node = "research_team"
+            else:
+                next_node = self.available_nodes[0] if self.available_nodes else "FINISH"
         elif any(keyword in task_lower for keyword in content_keywords):
-            # Route to first available content node
-            content_nodes = [n for n in self.available_nodes if 'content' in n.lower() or 'writer' in n.lower()]
-            next_node = content_nodes[0] if content_nodes else self.available_nodes[0]
-        elif any(keyword in task_lower for keyword in social_keywords):
-            # Route to first available social media node
-            social_nodes = [n for n in self.available_nodes if 'social' in n.lower() or 'media' in n.lower()]
-            next_node = social_nodes[0] if social_nodes else self.available_nodes[0]
+            # Route to content_team if available, otherwise first available node
+            if "content_team" in self.available_nodes:
+                next_node = "content_team"
+            else:
+                next_node = self.available_nodes[0] if self.available_nodes else "FINISH"
         else:
             # Default to first available node
             next_node = self.available_nodes[0] if self.available_nodes else "FINISH"
@@ -263,7 +262,8 @@ Example output format:
 # Factory functions for creating specific routers
 def create_main_supervisor_router(llm: BaseChatModel) -> StructuredRouter:
     """Create router for main supervisor"""
-    available_nodes = ["research_team", "content_team", "social_media_team", "strategy_agent"]
+    # Phase 1: Only research and content teams are implemented
+    available_nodes = ["research_team", "content_team"]
     return StructuredRouter(
         llm=llm,
         decision_model=MainSupervisorDecision,

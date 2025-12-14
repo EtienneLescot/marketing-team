@@ -130,7 +130,7 @@ def create_research_team(config: AgentConfig) -> StateGraph:
                 # Record tool call
                 monitor.record_tool_call(
                     agent_name="web_researcher",
-                    tool_name=search_tool.name,
+                    tool_name=search_tool.metadata.name,
                     params={"query": original_task, "max_results": 5},
                     result=f"Found {search_result.get('total_results', 0)} results",
                     duration_ms=None  # Already recorded by TimerContext
@@ -632,8 +632,9 @@ async def test_hierarchical_marketing():
     print("Testing Hierarchical Marketing Agents with LLM Routing")
     print("=" * 60)
     
-    # Create workflow
-    workflow = create_marketing_workflow()
+    # Create workflow and config
+    config = AgentConfig()
+    workflow = create_main_supervisor(config)
     
     # Test 1: Research task
     print("\n1. Testing research task:")
