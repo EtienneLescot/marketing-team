@@ -41,8 +41,18 @@ def marketing_supervisor(state: MessagesState) -> Command:
     et assigne les sous-tâches aux agents spécialisés.
     """
     last_message = state["messages"][-1].content
-    
-    if "recherche" in last_message.lower():
+
+    # Check if this is a response from an agent (starts with agent name)
+    if last_message.startswith("research_agent:") or \
+       last_message.startswith("content_agent:") or \
+       last_message.startswith("social_media_agent:") or \
+       last_message.startswith("analytics_agent:"):
+        # This is a response from an agent, terminate the workflow
+        return Command(
+            update={"task": "completed"},
+            goto=END
+        )
+    elif "recherche" in last_message.lower():
         return Command(
             update={"task": "research"},
             goto="research_agent"
@@ -84,8 +94,16 @@ def create_specialized_agent(name: str, tools: list, prompt: str):
     def agent_function(state: MessagesState):
         last_message = state["messages"][-1].content
 
-        # Perform the actual task using the tool
-        tool_result = tools[0](last_message)
+        # Perform the actual task using the tool with appropriate arguments
+        if name == "social_media_agent":
+            # publish_post requires both content and platform
+            tool_result = tools[0](last_message, "LinkedIn")  # Default platform
+        elif name == "analytics_agent":
+            # analyze_performance requires metrics dict
+            tool_result = tools[0]({"metrics": "sample_data"})
+        else:
+            # Other tools just need the message content
+            tool_result = tools[0](last_message)
 
         return {"messages": [{"role": "ai", "content": f"{name}: {tool_result}"}]}
 
@@ -134,10 +152,11 @@ workflow.add_edge("supervisor", "research_agent")
 workflow.add_edge("supervisor", "content_agent")
 workflow.add_edge("supervisor", "social_media_agent")
 workflow.add_edge("supervisor", "analytics_agent")
-workflow.add_edge("research_agent", "supervisor")
-workflow.add_edge("content_agent", "supervisor")
-workflow.add_edge("social_media_agent", "supervisor")
-workflow.add_edge("analytics_agent", "supervisor")
+# Remove the edges from agents back to supervisor - supervisor will handle termination
+workflow.add_edge("research_agent", END)
+workflow.add_edge("content_agent", END)
+workflow.add_edge("social_media_agent", END)
+workflow.add_edge("analytics_agent", END)
 
 # Compiler le graphe
 app = workflow.compile()
@@ -157,7 +176,7 @@ async def main():
 
     print("Résultat de l'exécution :")
     for message in result["messages"]:
-        print(f"{message['role']}: {message['content']}")
+        print(f"{message.type}: {message.content}")
 
 
 if __name__ == "__main__":
