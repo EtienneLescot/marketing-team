@@ -17,9 +17,9 @@ load_dotenv()
 class AgentConfig:
     """Configuration for a single agent"""
     name: str
-    model_name: str = "meta-llama/llama-3.3-70b-instruct:free"  # Default model
-    api_key_env_var: str = "OPENROUTER_API_KEY"  # Default API key environment variable
-    base_url: str = "https://openrouter.ai/api/v1"  # Default base URL
+    model_name: str = "deepseek-chat"  # Default model
+    api_key_env_var: str = "DEEPSEEK_API_KEY"  # Default API key environment variable
+    base_url: str = "https://api.deepseek.com"  # Default base URL
     headers: Optional[Dict[str, str]] = None
     tools: Optional[List] = None
     system_prompt: str = ""
@@ -72,9 +72,9 @@ def create_default_config() -> AgentConfigManager:
     
     main_supervisor_config = AgentConfig(
         name="main_supervisor",
-        model_name="meta-llama/llama-3.3-70b-instruct:free",  # Powerful model for orchestration
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",  # Powerful model for orchestration
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://marketing-orchestrator.com",
             "X-Title": "Marketing Main Supervisor"
@@ -102,9 +102,9 @@ def create_default_config() -> AgentConfigManager:
     
     research_team_supervisor_config = AgentConfig(
         name="research_team_supervisor",
-        model_name="amazon/nova-2-lite-v1:free",  # Model for research
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",  # Model for research
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://research-team.com",
             "X-Title": "Research Team Supervisor"
@@ -127,9 +127,9 @@ def create_default_config() -> AgentConfigManager:
     # Agents de l'équipe de recherche
     web_researcher_config = AgentConfig(
         name="web_researcher",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://web-researcher.com",
             "X-Title": "Web Researcher Agent"
@@ -140,9 +140,9 @@ def create_default_config() -> AgentConfigManager:
 
     data_analyst_config = AgentConfig(
         name="data_analyst",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://data-analyst.com",
             "X-Title": "Data Analyst Agent"
@@ -157,9 +157,9 @@ def create_default_config() -> AgentConfigManager:
     
     content_team_supervisor_config = AgentConfig(
         name="content_team_supervisor",
-        model_name="amazon/nova-2-lite-v1:free",  # Model for content creation
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",  # Model for content creation
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://content-team.com",
             "X-Title": "Content Team Supervisor"
@@ -183,9 +183,9 @@ def create_default_config() -> AgentConfigManager:
     # Agents de l'équipe de contenu
     content_writer_config = AgentConfig(
         name="content_writer",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://content-writer.com",
             "X-Title": "Content Writer Agent"
@@ -196,9 +196,9 @@ def create_default_config() -> AgentConfigManager:
 
     seo_specialist_config = AgentConfig(
         name="seo_specialist",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://seo-specialist.com",
             "X-Title": "SEO Specialist Agent"
@@ -209,9 +209,9 @@ def create_default_config() -> AgentConfigManager:
 
     visual_designer_config = AgentConfig(
         name="visual_designer",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://visual-designer.com",
             "X-Title": "Visual Designer Agent"
@@ -226,9 +226,9 @@ def create_default_config() -> AgentConfigManager:
     
     social_media_team_supervisor_config = AgentConfig(
         name="social_media_team_supervisor",
-        model_name="amazon/nova-2-lite-v1:free",  # Model for social media
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",  # Model for social media
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://social-media-team.com",
             "X-Title": "Social Media Team Supervisor"
@@ -252,9 +252,9 @@ def create_default_config() -> AgentConfigManager:
     # Agents de l'équipe des médias sociaux
     linkedin_manager_config = AgentConfig(
         name="linkedin_manager",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://linkedin-manager.com",
             "X-Title": "LinkedIn Manager Agent"
@@ -265,9 +265,9 @@ def create_default_config() -> AgentConfigManager:
 
     twitter_manager_config = AgentConfig(
         name="twitter_manager",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://twitter-manager.com",
             "X-Title": "Twitter Manager Agent"
@@ -278,9 +278,9 @@ def create_default_config() -> AgentConfigManager:
 
     analytics_tracker_config = AgentConfig(
         name="analytics_tracker",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://analytics-tracker.com",
             "X-Title": "Analytics Tracker Agent"
@@ -295,9 +295,9 @@ def create_default_config() -> AgentConfigManager:
     
     strategy_agent_config = AgentConfig(
         name="strategy_agent",
-        model_name="meta-llama/llama-3.3-70b-instruct:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://strategy-agent.com",
             "X-Title": "Strategy Agent"
@@ -308,9 +308,9 @@ def create_default_config() -> AgentConfigManager:
 
     community_manager_config = AgentConfig(
         name="community_manager",
-        model_name="amazon/nova-2-lite-v1:free",
-        api_key_env_var="OPENROUTER_API_KEY",
-        base_url="https://openrouter.ai/api/v1",
+        model_name="deepseek-chat",
+        api_key_env_var="DEEPSEEK_API_KEY",
+        base_url="https://api.deepseek.com",
         headers={
             "HTTP-Referer": "https://community-manager.com",
             "X-Title": "Community Manager Agent"

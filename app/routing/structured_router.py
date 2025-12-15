@@ -82,7 +82,7 @@ class StructuredRouter:
     """Factory for creating LLM-based routers with structured output"""
     
     def __init__(
-        self, 
+        self,
         llm: BaseChatModel,
         decision_model: Type[T],
         available_nodes: List[str],
@@ -95,12 +95,6 @@ class StructuredRouter:
         
         # Create output parser
         self.parser = PydanticOutputParser(pydantic_object=decision_model)
-        
-        # Create prompt template
-        self.prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content=self._create_system_prompt()),
-            HumanMessage(content="{task_description}")
-        ])
         
         # JSON validator
         self.validator = JSONOutputValidator()
@@ -118,22 +112,42 @@ class StructuredRouter:
 
 Available nodes to route to: {', '.join(self.available_nodes)}
 
-Your task is to analyze the current task and decide which node should handle it next.
+Your task is to analyze the CURRENT STATE and decide which node should handle it next.
+
+CRITICAL GUIDANCE FOR COMPLEX TASKS:
+1. **High-level tasks** (e.g., "promote my product", "create marketing plan", "launch campaign") require MULTIPLE teams working in sequence
+2. **Typical workflow for complex tasks**: research_team → content_team → social_media_team
+3. **Research tasks**: Market analysis, competitor research, data gathering, trend analysis
+4. **Content tasks**: Writing, SEO optimization, visual design, content creation
+5. **Social media tasks**: Publishing, scheduling, engagement, analytics
+6. **Strategy tasks**: Planning, coordination, multi-phase execution
+
+DECISION GUIDELINES:
+- **Analyze what's been done**: Check if research has been completed (look for web_researcher or data_analyst in messages)
+- **If research is done**: Route to content_team for content creation
+- **If content is done**: Route to social_media_team for publishing
+- **If all phases are complete**: Route to FINISH with should_terminate=True
+
+SPECIFIC RULES:
+1. If task mentions "promote", "market", "launch", "campaign" AND no research has been done → Start with research_team
+2. If research results are present in messages → Route to content_team
+3. If content has been created → Route to social_media_team
+4. If social media planning is done → Route to FINISH
 
 {format_instructions}
 
 Important rules:
 1. Only route to nodes that are in the available nodes list
-2. Use FINISH when the task is complete or no further processing is needed
-3. Provide clear reasoning for your decision
+2. Use FINISH when the current phase is complete (not necessarily the entire task)
+3. Provide clear reasoning for your decision, including what's been done so far
 4. Include a confidence score between 0 and 1
-5. Set should_terminate=True only when the entire workflow should end
+5. Set should_terminate=True ONLY when the ENTIRE multi-phase task is complete
 
-Example output format:
+Example output for complex task "Promote my GitHub repository" AFTER research:
 {{
-    "next_node": "research_team",
-    "reasoning": "The task requires market research and competitor analysis",
-    "confidence": 0.85,
+    "next_node": "content_team",
+    "reasoning": "Research phase completed (web_researcher provided search results). Now need content creation phase: write blog posts, create social media content based on research findings",
+    "confidence": 0.9,
     "should_terminate": false
 }}"""
     
@@ -141,12 +155,12 @@ Example output format:
         """Route based on current state"""
         self.call_count += 1
         
-        # Extract task description from state
+        # Extract task description and analyze what's been done
         messages = state.get("messages", [])
         if messages:
             # Get the last human message (original task)
             human_messages = [
-                msg for msg in messages 
+                msg for msg in messages
                 if hasattr(msg, 'type') and msg.type == 'human'
             ]
             if human_messages:
@@ -155,6 +169,16 @@ Example output format:
                 task_description = messages[-1].content
         else:
             task_description = state.get("task", "")
+        
+        # Analyze what agents have already worked on the task
+        agents_worked = []
+        for msg in messages:
+            if hasattr(msg, 'name') and msg.name:
+                agents_worked.append(msg.name)
+        
+        # Get unique agents
+        unique_agents = list(set(agents_worked))
+        work_summary = f"Agents that have worked on this task: {', '.join(unique_agents) if unique_agents else 'None'}"
         
         # Check iteration limit
         iteration_count = state.get("iteration_count", 0)
@@ -167,9 +191,29 @@ Example output format:
             )
         
         try:
-            # Get LLM response
-            chain = self.prompt | self.llm | self.parser
-            decision = await chain.ainvoke({"task_description": task_description})
+            # Get LLM response with context about what's been done
+            context = {
+                "task_description": task_description,
+                "work_summary": work_summary,
+                "iteration_count": iteration_count,
+                "available_nodes": ', '.join(self.available_nodes)
+            }
+            
+            # Create a more detailed prompt
+            detailed_prompt = ChatPromptTemplate.from_messages([
+                SystemMessage(content=self._create_system_prompt()),
+                HumanMessage(content=f"""Task: {task_description}
+
+Current State:
+- {work_summary}
+- Iteration: {iteration_count + 1} of {self.max_iterations}
+- Available next steps: {', '.join(self.available_nodes)}
+
+Based on what's been done so far, what should happen next?""")
+            ])
+            
+            chain = detailed_prompt | self.llm | self.parser
+            decision = await chain.ainvoke({})
             
             # Validate the decision
             self._validate_decision(decision)
@@ -262,13 +306,15 @@ Example output format:
 # Factory functions for creating specific routers
 def create_main_supervisor_router(llm: BaseChatModel) -> StructuredRouter:
     """Create router for main supervisor"""
-    # Phase 1: Only research and content teams are implemented
-    available_nodes = ["research_team", "content_team"]
+    # Include all teams for proper routing of complex tasks
+    # Note: social_media_team and strategy_agent are not fully implemented yet
+    # but are included so the router can plan the complete workflow
+    available_nodes = ["research_team", "content_team", "social_media_team", "strategy_agent", "FINISH"]
     return StructuredRouter(
         llm=llm,
         decision_model=MainSupervisorDecision,
         available_nodes=available_nodes,
-        max_iterations=3
+        max_iterations=5  # Increased for complex multi-phase tasks
     )
 
 

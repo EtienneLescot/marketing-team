@@ -8,7 +8,7 @@ enhanced hierarchical agent implementation.
 import asyncio
 import sys
 from datetime import datetime
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from app.agents.hierarchical_marketing import create_marketing_workflow
 
 
@@ -34,12 +34,43 @@ async def run_marketing_task(task_description: str):
     print(f"Iterations: {result.get('iteration_count', 0)}")
     print(f"Current team: {result.get('current_team', 'none')}")
     
-    print("\n📋 Results:")
-    for i, msg in enumerate(result.get("messages", [])):
-        if hasattr(msg, 'name'):
-            print(f"  {msg.name}: {msg.content[:200]}...")
+    print("\n📋 Team Output:")
+    messages = result.get("messages", [])
+    
+    if not messages:
+        print("  The team didn't generate any output.")
+        print("  This could be because:")
+        print("  1. The workflow terminated early (iteration limit reached)")
+        print("  2. There was an error in agent execution")
+        print("  3. Messages weren't propagated back to the main workflow")
+    else:
+        # Filter to show only agent responses (not the original user message)
+        agent_messages = []
+        for msg in messages:
+            # Show AIMessages (agent responses)
+            if isinstance(msg, AIMessage):
+                agent_messages.append(msg)
+            # Also show any message with a name (agent identifier)
+            elif hasattr(msg, 'name') and msg.name and msg.name not in ['user', 'system']:
+                agent_messages.append(msg)
+        
+        if not agent_messages:
+            print("  No agent responses in the output.")
+            print("  Raw messages found:")
+            for i, msg in enumerate(messages):
+                msg_type = type(msg).__name__
+                msg_name = getattr(msg, 'name', 'no name')
+                preview = msg.content[:100].replace('\n', ' ') + ('...' if len(msg.content) > 100 else '')
+                print(f"    [{i}] {msg_type} (name: {msg_name}): {preview}")
         else:
-            print(f"  {msg.content[:200]}...")
+            print(f"  Team generated {len(agent_messages)} responses:")
+            for msg in agent_messages:
+                agent_name = getattr(msg, 'name', 'unknown_agent')
+                print(f"\n{'='*60}")
+                print(f"AGENT: {agent_name}")
+                print(f"{'='*60}")
+                print(msg.content)
+                print(f"{'='*60}")
     
     # Show monitoring summary
     from app.monitoring.basic_monitor import get_global_monitor
