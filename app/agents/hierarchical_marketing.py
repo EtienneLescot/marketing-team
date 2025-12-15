@@ -80,6 +80,14 @@ def create_research_team(config: AgentConfig) -> StateGraph:
             # Get routing decision
             decision = await config.research_team_router.route(state)
             
+            # Log routing decision
+            monitor = get_global_monitor()
+            monitor.record_routing_decision(
+                supervisor_name="research_supervisor",
+                decision=decision.dict(),
+                duration_ms=0
+            )
+            
             # Update state with decision metadata
             update_data = {
                 "iteration_count": state.get("iteration_count", 0) + 1,
@@ -138,7 +146,7 @@ def create_research_team(config: AgentConfig) -> StateGraph:
                     duration_ms=None  # Already recorded by TimerContext
                 )
                 
-                # Format result
+            # Format result
                 if search_result.get("answer"):
                     result = f"Search results for '{original_task}':\n\n{search_result['answer']}"
                     
@@ -152,6 +160,9 @@ def create_research_team(config: AgentConfig) -> StateGraph:
                 else:
                     result = f"Found {search_result.get('total_results', 0)} results for '{original_task}'"
             
+            # Record agent output
+            monitor.record_agent_output("web_researcher", result)
+
             # Create agent response
             response_messages = create_agent_response(
                 content=result,
@@ -190,21 +201,29 @@ def create_research_team(config: AgentConfig) -> StateGraph:
             if not original_task:
                 original_task = state["messages"][-1].content if state["messages"] else "No task provided"
             
-            # For now, create mock analysis
-            # TODO: Implement real data analysis tools
-            analysis_result = f"""Data analysis for: {original_task}
-
-Summary:
-- Topic complexity: High
-- Data availability: Moderate
-- Recommended analysis: Trend analysis, correlation study
-- Estimated time: 2-3 hours
-
-Suggested metrics to track:
-1. Engagement rates
-2. Conversion metrics
-3. Audience demographics
-4. Content performance"""
+            # Get data analyst model
+            llm = config.llm_provider.get_agent_config("data_analyst").get_model()
+            
+            # Create prompt
+            system_prompt = config.llm_provider.get_agent_config("data_analyst").system_prompt
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Please analyze the following task/data and provide insights:\n\n{original_task}"}
+            ]
+            
+            # Execute LLM call
+            print(f"DEBUG: Data Analyst calling LLM for task: {original_task[:50]}...")
+            try:
+                response = await asyncio.wait_for(llm.ainvoke(messages), timeout=60.0)
+                print("DEBUG: Data Analyst received response")
+                analysis_result = response.content
+            except asyncio.TimeoutError:
+                print("DEBUG: Data Analyst timeout")
+                analysis_result = "Targeted analysis: Timeout waiting for detailed analysis. Focusing on key metrics based on available data."
+            
+            # Record agent output
+            monitor = get_global_monitor()
+            monitor.record_agent_output("data_analyst", analysis_result)
             
             # Create agent response
             response_messages = create_agent_response(
@@ -234,7 +253,7 @@ Suggested metrics to track:
                     "error": str(e)
                 }
             )
-    
+
     def _research_fallback_routing(state: TeamState) -> Command[Literal["web_researcher", "data_analyst", "__end__"]]:
         """Fallback routing for research team"""
         if state.get("iteration_count", 0) >= 2:
@@ -283,6 +302,14 @@ def create_content_team(config: AgentConfig) -> StateGraph:
         try:
             # Get routing decision
             decision = await config.content_team_router.route(state)
+
+            # Log routing decision
+            monitor = get_global_monitor()
+            monitor.record_routing_decision(
+                supervisor_name="content_supervisor",
+                decision=decision.dict(),
+                duration_ms=0
+            )
             
             # Update state with decision metadata
             update_data = {
@@ -309,24 +336,33 @@ def create_content_team(config: AgentConfig) -> StateGraph:
             original_task = extract_original_task(state["messages"])
             if not original_task:
                 original_task = state["messages"][-1].content if state["messages"] else "No task provided"
+                
+            # Get context from previous messages (e.g. research results)
+            context = "\n".join([f"{msg.name}: {msg.content}" for msg in state["messages"] if hasattr(msg, "name") and msg.name not in ["user", "system"]])
             
-            # For now, create mock content
-            # TODO: Implement real content generation with LLM
-            content = f"""Content created for: {original_task}
-
-Title: Mastering {original_task.split()[-1]} in Modern Marketing
-
-Introduction:
-In today's digital landscape, {original_task.lower()} has become increasingly important for businesses looking to stay competitive.
-
-Key Points:
-1. Understanding the fundamentals of {original_task.split()[-1]}
-2. Implementing effective strategies
-3. Measuring success and optimizing performance
-4. Staying ahead of emerging trends
-
-Conclusion:
-By focusing on {original_task.split()[-1]}, marketers can create more impactful campaigns and drive better results."""
+            # Get content writer model
+            llm = config.llm_provider.get_agent_config("content_writer").get_model()
+            
+            # Create prompt
+            system_prompt = config.llm_provider.get_agent_config("content_writer").system_prompt
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Task: {original_task}\n\nContext/Research:\n{context}\n\nPlease create high-quality marketing content based on the above."}
+            ]
+            
+            # Execute LLM call
+            print(f"DEBUG: Content Writer calling LLM for task: {original_task[:50]}...")
+            try:
+                response = await asyncio.wait_for(llm.ainvoke(messages), timeout=60.0)
+                print("DEBUG: Content Writer received response")
+                content = response.content
+            except asyncio.TimeoutError:
+                print("DEBUG: Content Writer timeout")
+                content = f"Content outline for {original_task}: (Generation timed out, please refine prompt)"
+            
+            # Record agent output
+            monitor = get_global_monitor()
+            monitor.record_agent_output("content_writer", content)
             
             # Create agent response
             response_messages = create_agent_response(
@@ -365,31 +401,33 @@ By focusing on {original_task.split()[-1]}, marketers can create more impactful 
             original_task = extract_original_task(state["messages"])
             if not original_task:
                 original_task = state["messages"][-1].content if state["messages"] else "No task provided"
+                
+            # Get content to optimize (from last message if possible)
+            content_to_optimize = state["messages"][-1].content if state["messages"] else ""
             
-            # Create SEO analysis
-            seo_analysis = f"""SEO analysis for: {original_task}
-
-Keyword Recommendations:
-1. Primary: {original_task.split()[-1]} marketing
-2. Secondary: digital {original_task.split()[-1]}
-3. Long-tail: effective {original_task.split()[-1]} strategies 2024
-
-On-Page Optimization:
-- Title tag: Include primary keyword
-- Meta description: 150-160 characters with keywords
-- Header structure: H1, H2, H3 with keyword variations
-- Content length: 1500+ words recommended
-
-Technical SEO:
-- Page speed optimization
-- Mobile responsiveness
-- Schema markup implementation
-- Internal linking structure
-
-Competitor Analysis:
-- Top 3 competitors ranking for similar keywords
-- Their content gaps and opportunities
-- Backlink profile analysis"""
+            # Get SEO model
+            llm = config.llm_provider.get_agent_config("seo_specialist").get_model()
+            
+            # Create prompt
+            system_prompt = config.llm_provider.get_agent_config("seo_specialist").system_prompt
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Task: {original_task}\n\nContent to analyze/optimize:\n{content_to_optimize}\n\nPlease provide SEO analysis and recommendations."}
+            ]
+            
+            # Execute LLM call
+            print(f"DEBUG: SEO Specialist calling LLM for task: {original_task[:50]}...")
+            try:
+                response = await asyncio.wait_for(llm.ainvoke(messages), timeout=60.0)
+                print("DEBUG: SEO Specialist received response")
+                seo_analysis = response.content
+            except asyncio.TimeoutError:
+                print("DEBUG: SEO Specialist timeout")
+                seo_analysis = "Basic SEO Checklist: (Generation timed out)"
+            
+            # Record agent output
+            monitor = get_global_monitor()
+            monitor.record_agent_output("seo_specialist", seo_analysis)
             
             # Create agent response
             response_messages = create_agent_response(
@@ -563,6 +601,14 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
         try:
             # Get routing decision from LLM
             decision = await config.main_supervisor_router.route(state)
+
+            # Log routing decision
+            monitor = get_global_monitor()
+            monitor.record_routing_decision(
+                supervisor_name="main_supervisor",
+                decision=decision.dict(),
+                duration_ms=0
+            )
             
             # Update state with decision metadata
             update_data = {

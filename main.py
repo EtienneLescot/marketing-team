@@ -5,6 +5,7 @@ This script provides a unified interface to run marketing tasks using the
 enhanced hierarchical agent implementation with real-time monitoring.
 """
 
+
 import asyncio
 import sys
 from datetime import datetime
@@ -12,145 +13,164 @@ from langchain_core.messages import HumanMessage, AIMessage
 from app.agents.hierarchical_marketing import create_marketing_workflow
 from app.monitoring.streaming_monitor import get_global_streaming_monitor
 
+# Rich imports
+from rich.console import Console
+from rich.panel import Panel
+from rich.layout import Layout
+from rich.tree import Tree
+from rich.live import Live
+from rich.table import Table
+from rich.text import Text
+from rich import box
+
+console = Console()
 
 async def run_marketing_task(task_description: str):
     """Run a marketing task with the hierarchical agents."""
-    print(f"Running task: {task_description}")
-    print("-" * 40)
+    console.print(Panel(f"[bold blue]Task:[/bold blue] {task_description}", title="🚀 Marketing Agent System", border_style="blue"))
     
     # Get streaming monitor
     monitor = get_global_streaming_monitor()
+    
+    # CRITICAL FIX: Ensure basic monitor uses the same instance
+    from app.monitoring import basic_monitor
+    basic_monitor._global_monitor = monitor
+    
     stream = monitor.get_stream()
     
-    print("\n🎬 Starting real-time monitoring...")
-    print("   Agents will report activities as they happen.")
-    print("   Coordinator decisions will be shown in real-time.")
-    print("-" * 40)
+    # Create a layout for live monitoring
+    layout = Layout()
+    layout.split(
+        Layout(name="header", size=3),
+        Layout(name="main", ratio=1),
+        Layout(name="footer", size=3)
+    )
+    
+    # Store history for display
+    event_history = []
+    active_agents = set()
+    
+    def create_status_table():
+        table = Table(title="Active Agents", box=box.ROUNDED)
+        table.add_column("Agent", style="cyan")
+        table.add_column("Status", style="green")
+        table.add_column("Last Activity", style="dim")
+        
+        if not active_agents:
+            table.add_row("System", "Idle", datetime.now().strftime("%H:%M:%S"))
+        else:
+            for agent in active_agents:
+                table.add_row(agent, "Working...", datetime.now().strftime("%H:%M:%S"))
+        return table
+
+    def print_event(event):
+        try:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            
+            # Identify event type and create rich output
+            if event.get('type') == 'interaction':
+                msg = f"[bold yellow]🔄 ROUTING:[/bold yellow] {event['from']} → {event['to']}"
+                console.print(f"[{timestamp}] {msg}")
+                
+            elif event.get('type') == 'output':
+                agent = event.get('agent', 'unknown')
+                output = event.get('output', '')
+                console.print(Panel(output, title=f"🗣️  Output from [bold cyan]{agent}[/bold cyan]", border_style="green"))
+                if agent in active_agents:
+                    active_agents.discard(agent)
+            
+            elif event.get('type') == 'routing':
+                supervisor = event.get('supervisor', 'unknown')
+                next_node = event.get('decision', {}).get('next_node', 'unknown')
+                confidence = event.get('decision', {}).get('confidence', '?')
+                reasoning = event.get('reasoning', '')
+                
+                msg = f"[bold magenta]🧭 COORDINATOR ({supervisor}):[/bold magenta] Routing to [bold cyan]{next_node}[/bold cyan] (Conf: {confidence})"
+                console.print(f"[{timestamp}] {msg}")
+                if reasoning:
+                    console.print(f"   [dim]Reasoning: {reasoning}[/dim]")
+            
+            elif 'agent_name' in event:
+                agent = event['agent_name']
+                etype = event['event_type']
+                
+                if "start" in etype:
+                    active_agents.add(agent)
+                    color = "green"
+                    icon = "▶️"
+                elif "complete" in etype:
+                    active_agents.discard(agent)
+                    color = "blue"
+                    icon = "✅"
+                elif "error" in etype:
+                    active_agents.discard(agent)
+                    color = "red"
+                    icon = "❌"
+                else:
+                    color = "white"
+                    icon = "🤖"
+                
+                msg = f"{icon} [bold {color}]{agent}[/bold {color}]: {etype}"
+                console.print(f"[{timestamp}] {msg}")
+                
+                # Print specific data if available (e.g. tool usage)
+                if event.get('data') and 'tool_name' in event['data']:
+                     tool = event['data']['tool_name']
+                     console.print(f"   🛠️  Using tool: [bold]{tool}[/bold]")
+
+        except Exception as e:
+            console.print(f"[red]Error displaying event: {e}[/red]")
+
+    # Subscribe to stream
+    stream.subscribe(print_event)
+    
+    console.print("[dim]Starting monitor...[/dim]")
     
     # Create workflow
     workflow = create_marketing_workflow()
     
-    # Execute task
-    result = await workflow.ainvoke({
-        "messages": [HumanMessage(content=task_description)],
-        "iteration_count": 0,
-        "workflow_status": "running",
-        "start_time": datetime.now()
-    })
+    # Execute task with progress spinner
+    with console.status("[bold green]Executing Marketing Workflow...[/bold green]", spinner="dots"):
+        result = await workflow.ainvoke({
+            "messages": [HumanMessage(content=task_description)],
+            "iteration_count": 0,
+            "workflow_status": "running",
+            "start_time": datetime.now()
+        })
     
     # Display final results
-    print("\n" + "="*60)
-    print("✅ TASK COMPLETED!")
-    print("="*60)
-    print(f"Status: {result.get('workflow_status', 'unknown')}")
-    print(f"Iterations: {result.get('iteration_count', 0)}")
-    print(f"Current team: {result.get('current_team', 'none')}")
+    console.print(Panel("Task Completed Successfully", style="bold green"))
     
-    # Show routing decision if available
-    routing_decision = result.get("routing_decision")
-    if routing_decision:
-        print(f"\n📊 Final Routing Decision:")
-        print(f"  Next node: {routing_decision.get('next_node')}")
-        print(f"  Confidence: {routing_decision.get('confidence', 0):.2f}")
-        print(f"  Reasoning: {routing_decision.get('reasoning', '')[:200]}...")
-    
-    print("\n📋 Team Output Summary:")
+    # Show output messages
     messages = result.get("messages", [])
-    
-    if not messages:
-        print("  The team didn't generate any output.")
-    else:
-        # Filter to show only agent responses
-        agent_messages = []
+    if messages:
         for msg in messages:
-            if isinstance(msg, AIMessage):
-                agent_messages.append(msg)
-            elif hasattr(msg, 'name') and msg.name and msg.name not in ['user', 'system']:
-                agent_messages.append(msg)
-        
-        if not agent_messages:
-            print("  No agent responses in the output.")
-        else:
-            print(f"  Team generated {len(agent_messages)} responses:")
-            for msg in agent_messages:
-                agent_name = getattr(msg, 'name', 'unknown_agent')
-                print(f"\n{'='*60}")
-                print(f"AGENT: {agent_name}")
-                print(f"{'='*60}")
-                print(msg.content[:500] + ("..." if len(msg.content) > 500 else ""))
-                print(f"{'='*60}")
-    
-    # Show real-time activity summary
-    print("\n" + "="*60)
-    print("📈 REAL-TIME ACTIVITY SUMMARY")
-    print("="*60)
-    monitor.print_real_time_summary()
-    
-    # Show workflow diagram
-    print("\n" + "="*60)
-    print("📊 WORKFLOW DIAGRAM (Mermaid.js)")
-    print("="*60)
-    mermaid_diagram = stream.generate_mermaid_diagram()
-    print(mermaid_diagram)
-    print("\n💡 Copy this diagram to https://mermaid.live/ to visualize")
-    
-    # Show monitoring summary
-    print("\n" + "="*60)
-    print("📊 AGENT MONITORING SUMMARY")
-    print("="*60)
-    from app.monitoring.basic_monitor import get_global_monitor
-    basic_monitor = get_global_monitor()
-    basic_monitor.print_summary()
-    
-    return result
+            if isinstance(msg, AIMessage) or (hasattr(msg, 'name') and msg.name not in ['user', 'system']):
+                name = getattr(msg, 'name', 'Assistant')
+                console.print(Panel(msg.content, title=f"📄 Final Output: {name}", border_style="blue"))
 
+    return result
 
 def print_help():
     """Print help information."""
-    print("Marketing Agents System - Usage")
-    print("=" * 60)
-    print("Run a marketing task:")
-    print("  uv run python main.py \"Your marketing task description\"")
-    print()
-    print("Interactive mode:")
-    print("  uv run python main.py --interactive")
-    print()
-    print("Example tasks:")
-    print("  1. \"Research the latest trends in AI-powered marketing automation\"")
-    print("  2. \"Create a blog post about effective social media strategies for B2B companies\"")
-    print("  3. \"Analyze competitor social media presence and create content recommendations\"")
-    print("  4. \"Research Python web frameworks for 2024 and create a comparison article\"")
-    print()
-    print("For detailed instructions, see RUN_TASKS_GUIDE.md")
-
+    console = Console()
+    console.print(Panel("Marketing Agents System", style="bold blue"))
+    console.print("Usage:")
+    console.print("  uv run python main.py \"Your task\"")
+    console.print("  uv run python main.py --interactive")
 
 async def interactive_mode():
     """Run in interactive mode."""
-    print("Marketing Agents System - Interactive Mode")
-    print("=" * 60)
-    print("Type your marketing tasks (or 'quit' to exit):")
-    
+    console.print(Panel("Interactive Mode", style="bold green"))
     while True:
         try:
-            task = input("\n> ").strip()
-            
+            task = console.input("\n[bold]Enter task (or 'quit' to exit):[/bold] ")
             if task.lower() in ["quit", "exit", "q"]:
-                print("Goodbye!")
                 break
-            elif task.lower() in ["help", "h"]:
-                print_help()
-            elif task:
+            if task:
                 await run_marketing_task(task)
-            else:
-                print("Please enter a task or 'quit' to exit.")
-                
-        except KeyboardInterrupt:
-            print("\n\nInterrupted. Goodbye!")
-            break
         except Exception as e:
-            print(f"Error: {e}")
-            print("Please try again.")
-
+            console.print(f"[red]Error: {e}[/red]")
 
 async def main():
     """Main entry point."""
@@ -160,13 +180,9 @@ async def main():
     
     if sys.argv[1] == "--interactive":
         await interactive_mode()
-    elif sys.argv[1] in ["--help", "-h"]:
-        print_help()
     else:
-        # Join all arguments as the task
         task = " ".join(sys.argv[1:])
         await run_marketing_task(task)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
