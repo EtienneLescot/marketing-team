@@ -2,7 +2,7 @@
 """
 Main entry point for the Marketing Agents System.
 This script provides a unified interface to run marketing tasks using the
-enhanced hierarchical agent implementation.
+enhanced hierarchical agent implementation with real-time monitoring.
 """
 
 import asyncio
@@ -10,11 +10,21 @@ import sys
 from datetime import datetime
 from langchain_core.messages import HumanMessage, AIMessage
 from app.agents.hierarchical_marketing import create_marketing_workflow
+from app.monitoring.streaming_monitor import get_global_streaming_monitor
 
 
 async def run_marketing_task(task_description: str):
     """Run a marketing task with the hierarchical agents."""
     print(f"Running task: {task_description}")
+    print("-" * 40)
+    
+    # Get streaming monitor
+    monitor = get_global_streaming_monitor()
+    stream = monitor.get_stream()
+    
+    print("\n🎬 Starting real-time monitoring...")
+    print("   Agents will report activities as they happen.")
+    print("   Coordinator decisions will be shown in real-time.")
     print("-" * 40)
     
     # Create workflow
@@ -28,40 +38,38 @@ async def run_marketing_task(task_description: str):
         "start_time": datetime.now()
     })
     
-    # Display results
-    print("\n✅ Task completed!")
+    # Display final results
+    print("\n" + "="*60)
+    print("✅ TASK COMPLETED!")
+    print("="*60)
     print(f"Status: {result.get('workflow_status', 'unknown')}")
     print(f"Iterations: {result.get('iteration_count', 0)}")
     print(f"Current team: {result.get('current_team', 'none')}")
     
-    print("\n📋 Team Output:")
+    # Show routing decision if available
+    routing_decision = result.get("routing_decision")
+    if routing_decision:
+        print(f"\n📊 Final Routing Decision:")
+        print(f"  Next node: {routing_decision.get('next_node')}")
+        print(f"  Confidence: {routing_decision.get('confidence', 0):.2f}")
+        print(f"  Reasoning: {routing_decision.get('reasoning', '')[:200]}...")
+    
+    print("\n📋 Team Output Summary:")
     messages = result.get("messages", [])
     
     if not messages:
         print("  The team didn't generate any output.")
-        print("  This could be because:")
-        print("  1. The workflow terminated early (iteration limit reached)")
-        print("  2. There was an error in agent execution")
-        print("  3. Messages weren't propagated back to the main workflow")
     else:
-        # Filter to show only agent responses (not the original user message)
+        # Filter to show only agent responses
         agent_messages = []
         for msg in messages:
-            # Show AIMessages (agent responses)
             if isinstance(msg, AIMessage):
                 agent_messages.append(msg)
-            # Also show any message with a name (agent identifier)
             elif hasattr(msg, 'name') and msg.name and msg.name not in ['user', 'system']:
                 agent_messages.append(msg)
         
         if not agent_messages:
             print("  No agent responses in the output.")
-            print("  Raw messages found:")
-            for i, msg in enumerate(messages):
-                msg_type = type(msg).__name__
-                msg_name = getattr(msg, 'name', 'no name')
-                preview = msg.content[:100].replace('\n', ' ') + ('...' if len(msg.content) > 100 else '')
-                print(f"    [{i}] {msg_type} (name: {msg_name}): {preview}")
         else:
             print(f"  Team generated {len(agent_messages)} responses:")
             for msg in agent_messages:
@@ -69,13 +77,30 @@ async def run_marketing_task(task_description: str):
                 print(f"\n{'='*60}")
                 print(f"AGENT: {agent_name}")
                 print(f"{'='*60}")
-                print(msg.content)
+                print(msg.content[:500] + ("..." if len(msg.content) > 500 else ""))
                 print(f"{'='*60}")
     
+    # Show real-time activity summary
+    print("\n" + "="*60)
+    print("📈 REAL-TIME ACTIVITY SUMMARY")
+    print("="*60)
+    monitor.print_real_time_summary()
+    
+    # Show workflow diagram
+    print("\n" + "="*60)
+    print("📊 WORKFLOW DIAGRAM (Mermaid.js)")
+    print("="*60)
+    mermaid_diagram = stream.generate_mermaid_diagram()
+    print(mermaid_diagram)
+    print("\n💡 Copy this diagram to https://mermaid.live/ to visualize")
+    
     # Show monitoring summary
+    print("\n" + "="*60)
+    print("📊 AGENT MONITORING SUMMARY")
+    print("="*60)
     from app.monitoring.basic_monitor import get_global_monitor
-    monitor = get_global_monitor()
-    monitor.print_summary()
+    basic_monitor = get_global_monitor()
+    basic_monitor.print_summary()
     
     return result
 

@@ -7,12 +7,16 @@ from typing import List, Dict, Any, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 
 
-def extract_original_task(messages: List[BaseMessage]) -> Optional[str]:
+def extract_original_task(
+    messages: List[BaseMessage],
+    clean_text: bool = True
+) -> Optional[str]:
     """
     Extract the original user task from message history.
     
     Args:
         messages: List of messages in the conversation
+        clean_text: Whether to clean the text (extract repo info, remove URLs)
         
     Returns:
         The original user task text, or None if not found
@@ -20,11 +24,17 @@ def extract_original_task(messages: List[BaseMessage]) -> Optional[str]:
     # Look for the first human message (original task)
     for message in messages:
         if isinstance(message, HumanMessage):
-            return message.content
+            task_text = message.content
+            if clean_text:
+                return clean_task_text(task_text)
+            return task_text
     
     # If no human message found, check the last message
     if messages:
-        return messages[-1].content
+        task_text = messages[-1].content
+        if clean_text:
+            return clean_task_text(task_text)
+        return task_text
     
     return None
 
@@ -224,3 +234,93 @@ def reset_message_nesting(
         reset_messages.append(messages[0])
     
     return reset_messages
+
+
+def extract_github_repo_info(task_text: str) -> Dict[str, Any]:
+    """
+    Extract GitHub repository information from task text.
+    
+    Args:
+        task_text: The task text that may contain GitHub URLs
+        
+    Returns:
+        Dictionary with repository information
+    """
+    import re
+    
+    # Pattern to match GitHub URLs
+    github_pattern = r'https?://github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)'
+    
+    matches = re.findall(github_pattern, task_text)
+    
+    if not matches:
+        return {
+            "has_repo": False,
+            "repo_url": None,
+            "owner": None,
+            "repo_name": None,
+            "full_name": None
+        }
+    
+    # Get the first match
+    owner, repo_name = matches[0]
+    repo_url = f"https://github.com/{owner}/{repo_name}"
+    full_name = f"{owner}/{repo_name}"
+    
+    return {
+        "has_repo": True,
+        "repo_url": repo_url,
+        "owner": owner,
+        "repo_name": repo_name,
+        "full_name": full_name
+    }
+
+
+def clean_task_text(task_text: str) -> str:
+    """
+    Clean task text by removing URLs and extracting key information.
+    
+    Args:
+        task_text: Original task text
+        
+    Returns:
+        Cleaned task text
+    """
+    import re
+    
+    # Extract GitHub repo info
+    repo_info = extract_github_repo_info(task_text)
+    
+    if repo_info["has_repo"]:
+        # Remove the URL from the text
+        url_pattern = re.escape(repo_info["repo_url"])
+        cleaned = re.sub(url_pattern, '', task_text)
+        
+        # Also remove common URL preface phrases
+        url_phrases = [
+            r'here is the repo url:',
+            r'here is the repository:',
+            r'repository url:',
+            r'github url:',
+            r'url:',
+            r'link:'
+        ]
+        
+        for phrase in url_phrases:
+            cleaned = re.sub(phrase, '', cleaned, flags=re.IGNORECASE)
+        
+        # Clean up extra spaces and punctuation
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        cleaned = re.sub(r'[.,;:\s]+$', '', cleaned)
+        
+        # If the cleaned text is empty or just whitespace, create a concise version
+        if not cleaned or len(cleaned.strip()) < 10:
+            return f"Promote GitHub repository: {repo_info['full_name']}"
+        
+        # Add repo name context if not already mentioned
+        if repo_info["full_name"].lower() not in cleaned.lower():
+            cleaned = f"{cleaned} (Repository: {repo_info['full_name']})"
+        
+        return cleaned
+    
+    return task_text

@@ -69,6 +69,7 @@ class AgentConfig:
 def create_research_team(config: AgentConfig) -> StateGraph:
     """Create research team with LLM-based routing"""
     
+    @monitor_agent_call("research_supervisor")
     async def research_supervisor_node(state: TeamState) -> Command[Literal["web_researcher", "data_analyst", "__end__"]]:
         """Research team supervisor with LLM routing"""
         # Check iteration limit
@@ -180,6 +181,7 @@ def create_research_team(config: AgentConfig) -> StateGraph:
                 }
             )
     
+    @monitor_agent_call("data_analyst")
     async def data_analyst_node(state: TeamState) -> Command[Literal["supervisor"]]:
         """Data analyst agent"""
         try:
@@ -271,6 +273,7 @@ Suggested metrics to track:
 def create_content_team(config: AgentConfig) -> StateGraph:
     """Create content team with LLM-based routing"""
     
+    @monitor_agent_call("content_supervisor")
     async def content_supervisor_node(state: TeamState) -> Command[Literal["content_writer", "seo_specialist", "__end__"]]:
         """Content team supervisor with LLM routing"""
         # Check iteration limit
@@ -298,6 +301,7 @@ def create_content_team(config: AgentConfig) -> StateGraph:
             print(f"Content supervisor routing failed: {e}")
             return _content_fallback_routing(state)
     
+    @monitor_agent_call("content_writer")
     async def content_writer_node(state: TeamState) -> Command[Literal["supervisor"]]:
         """Content writer agent"""
         try:
@@ -353,6 +357,7 @@ By focusing on {original_task.split()[-1]}, marketers can create more impactful 
                 }
             )
     
+    @monitor_agent_call("seo_specialist")
     async def seo_specialist_node(state: TeamState) -> Command[Literal["supervisor"]]:
         """SEO specialist agent"""
         try:
@@ -543,6 +548,7 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
                 }
             )
     
+    @monitor_agent_call("main_supervisor")
     async def main_supervisor_node(state: EnhancedMarketingState) -> Command[Literal["research_team", "content_team", "__end__"]]:
         """Main supervisor with LLM routing"""
         # Check iteration limit
