@@ -7,7 +7,8 @@ import asyncio
 from typing import Literal, List, Optional, Dict, Any
 from datetime import datetime
 from langgraph.graph import StateGraph, START, END
-from langgraph.types import Command
+from langgraph.types import Command, interrupt
+from langgraph.errors import GraphInterrupt
 from langchain_core.messages import HumanMessage, AIMessage
 
 from app.models.state_models import EnhancedMarketingState, TeamState
@@ -535,12 +536,13 @@ def create_content_team(config: AgentConfig) -> StateGraph:
 # Main Supervisor
 # ============================================================================
 
-def create_main_supervisor(config: AgentConfig) -> StateGraph:
+def create_main_supervisor(config: AgentConfig, checkpointer=None) -> StateGraph:
     """Create main supervisor with LLM-based routing"""
     
     # Create team graphs
     research_team_graph = create_research_team(config)
     content_team_graph = create_content_team(config)
+    social_media_team_graph = create_social_media_team(config)
     
     async def call_research_team(state: EnhancedMarketingState) -> Command[Literal["supervisor"]]:
         """Call research team"""
@@ -616,20 +618,76 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
                 }
             )
             
+        except GraphInterrupt:
+            print("DEBUG: CAUGHT GRAPH INTERRUPT IN SUBGRAPH (content_team)")
+            raise
         except Exception as e:
+            print(f"DEBUG: CAUGHT EXCEPTION IN SUBGRAPH (content_team): {type(e)}")
+            monitor = get_global_monitor()
+            await monitor.record_event(
+                agent_name="content_team",
+                event_type="error",
+                data={"error": str(e)}
+            )
             print(f"Content team failed: {e}")
             return Command(
                 goto="supervisor",
                 update={
-                    "messages": [AIMessage(content=f"Content team error: {str(e)[:200]}", name="system")],
+                    "messages": [AIMessage(content=f"Content team error ({type(e).__module__}.{type(e).__name__}): {str(e)[:200]}", name="system")],
                     "current_team": "content_team",
+                    "team_result": False,
+                    "error": str(e)
+                }
+            )
+
+    async def call_social_media_team(state: EnhancedMarketingState) -> Command[Literal["supervisor"]]:
+        """Call social media team"""
+        try:
+            # Sanitize messages to prevent nesting
+            sanitized_messages = sanitize_messages_for_agent(state["messages"])
+            
+            response = await social_media_team_graph.ainvoke({
+                "messages": sanitized_messages,
+                "team_name": "social_media_team",
+                "iteration_count": 0
+            })
+            
+            # Extract the result from social media team
+            result_message = None
+            for msg in reversed(response["messages"]):
+                if isinstance(msg, AIMessage) and msg.name in ["publisher", "linkedin_manager", "twitter_manager"]:
+                    result_message = msg
+                    break
+            
+            if not result_message and response["messages"]:
+                result_message = response["messages"][-1]
+            
+            return Command(
+                goto="supervisor",
+                update={
+                    "messages": [result_message] if result_message else [],
+                    "current_team": "social_media_team",
+                    "team_result": response.get("task_completed", False)
+                }
+            )
+            
+        except GraphInterrupt:
+            # Re-raise GraphInterrupt so it can be handled by the main loop
+            raise
+        except Exception as e:
+            print(f"Social media team failed: {e}")
+            return Command(
+                goto="supervisor",
+                update={
+                    "messages": [AIMessage(content=f"Social media team error: {str(e)[:200]}", name="system")],
+                    "current_team": "social_media_team",
                     "team_result": False,
                     "error": str(e)
                 }
             )
     
     @monitor_agent_call("main_supervisor")
-    async def main_supervisor_node(state: EnhancedMarketingState) -> Command[Literal["research_team", "content_team", "__end__"]]:
+    async def main_supervisor_node(state: EnhancedMarketingState) -> Command[Literal["research_team", "content_team", "social_media_team", "__end__"]]:
         """Main supervisor with LLM routing"""
         # Check iteration limit
         if state.get("iteration_count", 0) >= 3:
@@ -672,9 +730,9 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
             print(f"Main supervisor routing failed: {e}")
             return _main_fallback_routing(state)
     
-    def _main_fallback_routing(state: EnhancedMarketingState) -> Command[Literal["research_team", "content_team", "__end__"]]:
+    def _main_fallback_routing(state: EnhancedMarketingState) -> Command[Literal["research_team", "content_team", "social_media_team", "__end__"]]:
         """Fallback routing for main supervisor"""
-        if state.get("iteration_count", 0) >= 3:
+        if state.get("iteration_count", 0) >= 4:
             return Command(goto=END, update={"workflow_status": "completed"})
         
         last_message = state["messages"][-1].content.lower() if state["messages"] else ""
@@ -684,6 +742,8 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
             goto = "research_team"
         elif "content" in last_message or "write" in last_message or "create" in last_message:
             goto = "content_team"
+        elif "social" in last_message or "post" in last_message or "publish" in last_message:
+            goto = "social_media_team"
         else:
             # Default to research team for first iteration
             if state.get("iteration_count", 0) >= 1:
@@ -709,22 +769,24 @@ def create_main_supervisor(config: AgentConfig) -> StateGraph:
     main_builder.add_node("supervisor", main_supervisor_node)
     main_builder.add_node("research_team", call_research_team)
     main_builder.add_node("content_team", call_content_team)
+    main_builder.add_node("social_media_team", call_social_media_team)
     
     main_builder.add_edge(START, "supervisor")
     main_builder.add_edge("research_team", "supervisor")
     main_builder.add_edge("content_team", "supervisor")
+    main_builder.add_edge("social_media_team", "supervisor")
     
-    return main_builder.compile()
+    return main_builder.compile(checkpointer=checkpointer)
 
 
 # ============================================================================
 # Factory Function and Test
 # ============================================================================
 
-def create_marketing_workflow() -> StateGraph:
+def create_marketing_workflow(checkpointer=None) -> StateGraph:
     """Create the complete hierarchical marketing workflow"""
     config = AgentConfig()
-    return create_main_supervisor(config)
+    return create_main_supervisor(config, checkpointer=checkpointer)
 
 
 async def test_hierarchical_marketing():
@@ -835,3 +897,162 @@ if __name__ == "__main__":
         print("5. Comprehensive error handling and fallbacks")
     else:
         print("\n❌ Some tests failed. Check the errors above.")
+# ============================================================================
+# Social Media Team Agents
+# ============================================================================
+
+def create_social_media_team(config: AgentConfig) -> StateGraph:
+    """Create social media team with HITL for publishing"""
+    
+    @monitor_agent_call("social_media_supervisor")
+    async def social_media_supervisor_node(state: TeamState) -> Command[Literal["linkedin_manager", "twitter_manager", "publisher", "__end__"]]:
+        """Social media team supervisor with LLM routing"""
+        if state.get("iteration_count", 0) >= 3:
+            return Command(goto=END)
+        
+        try:
+            decision = await config.social_media_team_router.route(state)
+            print(f"DEBUG: Social Media Supervisor Decision: {decision.next_node}")
+
+            monitor = get_global_monitor()
+            monitor.record_routing_decision(
+                supervisor_name="social_media_supervisor",
+                decision=decision.dict(),
+                duration_ms=0
+            )
+            
+            update_data = {
+                "iteration_count": state.get("iteration_count", 0) + 1,
+                "current_agent": decision.next_node if decision.next_node != "FINISH" else None,
+                "routing_decision": decision.dict()
+            }
+
+            if decision.instructions:
+                update_data["messages"] = state.get("messages", []) + [HumanMessage(content=decision.instructions, name="supervisor_instructions")]
+            
+            if decision.should_terminate or decision.next_node == "FINISH":
+                return Command(goto=END, update=update_data)
+            
+            return Command(goto=decision.next_node, update=update_data)
+            
+        except Exception as e:
+            print(f"Social media supervisor routing failed: {e}")
+            # Fallback to publisher if content exists, otherwise finish
+            return Command(goto="publisher", update={"iteration_count": state.get("iteration_count", 0) + 1})
+
+    @monitor_agent_call("linkedin_manager")
+    async def linkedin_manager_node(state: TeamState) -> Command[Literal["supervisor"]]:
+        """LinkedIn Manager Agent"""
+        monitor = get_global_monitor()
+        try:
+            original_task = state["messages"][-1].content if state["messages"] else "No task provided"
+            context = "\n".join([f"{msg.name}: {msg.content}" for msg in state["messages"] if hasattr(msg, "name") and msg.name not in ["user", "system"]])
+            
+            # Using content writer model for now
+            llm = config.llm_provider.get_agent_config("content_writer").get_model() 
+            
+            prompt = f"You are a LinkedIn Manager. Create a professional LinkedIn post based on:\nTask: {original_task}\nContext: {context}"
+            monitor.record_agent_prompt("linkedin_manager", prompt)
+            
+            response = await asyncio.wait_for(llm.ainvoke([{"role": "user", "content": prompt}]), timeout=60.0)
+            content = response.content
+            
+            monitor.record_agent_output("linkedin_manager", content)
+            
+            return Command(
+                goto="supervisor",
+                update={
+                    "messages": create_agent_response(content, "linkedin_manager", True, original_task),
+                    "task_completed": True
+                }
+            )
+        except Exception as e:
+            return Command(goto="supervisor", update={"error": str(e)})
+
+    @monitor_agent_call("twitter_manager")
+    async def twitter_manager_node(state: TeamState) -> Command[Literal["supervisor"]]:
+        """Twitter Manager Agent"""
+        monitor = get_global_monitor()
+        try:
+            original_task = state["messages"][-1].content if state["messages"] else "No task provided"
+            context = "\n".join([f"{msg.name}: {msg.content}" for msg in state["messages"] if hasattr(msg, "name") and msg.name not in ["user", "system"]])
+            
+            llm = config.llm_provider.get_agent_config("content_writer").get_model()
+            
+            prompt = f"You are a Twitter Manager. Create a threaded tweet based on:\nTask: {original_task}\nContext: {context}"
+            monitor.record_agent_prompt("twitter_manager", prompt)
+            
+            response = await asyncio.wait_for(llm.ainvoke([{"role": "user", "content": prompt}]), timeout=60.0)
+            content = response.content
+            
+            monitor.record_agent_output("twitter_manager", content)
+            
+            return Command(
+                goto="supervisor",
+                update={
+                    "messages": create_agent_response(content, "twitter_manager", True, original_task),
+                    "task_completed": True
+                }
+            )
+        except Exception as e:
+            return Command(goto="supervisor", update={"error": str(e)})
+
+    @monitor_agent_call("publisher")
+    async def publisher_node(state: TeamState) -> Command[Literal["supervisor"]]:
+        """Publisher Agent with Human-in-the-Loop"""
+        monitor = get_global_monitor()
+        
+        # Get content to publish (from last manager message)
+        content_to_publish = "No content found"
+        platform = "Unknown"
+        
+        for msg in reversed(state["messages"]):
+            if hasattr(msg, "name") and msg.name in ["linkedin_manager", "twitter_manager"]:
+                content_to_publish = msg.content
+                platform = "LinkedIn" if msg.name == "linkedin_manager" else "Twitter"
+                break
+        
+        # Create approval request
+        approval_request = f"Please review this {platform} post:\n\n{content_to_publish}\n\nType 'approved' to publish or provide feedback."
+        
+        # INTERRUPT FOR HUMAN APPROVAL
+        monitor.record_event(agent_name="publisher", event_type="waiting_for_approval", data={"content": content_to_publish})
+        print(f"\n[bold yellow]✋ Review Required for {platform} Post:[/bold yellow]")
+        print(f"{content_to_publish}")
+        
+        user_feedback = interrupt(approval_request)
+        
+        if str(user_feedback).lower().strip() == "approved":
+            result = f"✅ Successfully published to {platform}!"
+            monitor.record_agent_output("publisher", result)
+            return Command(
+                goto="supervisor", 
+                update={
+                    "messages": [AIMessage(content=result, name="publisher")],
+                    "task_completed": True
+                }
+            )
+        else:
+            result = f"❌ Publication rejected. Feedback: {user_feedback}"
+            monitor.record_agent_output("publisher", result)
+            return Command(
+                goto="supervisor", 
+                update={
+                    "messages": [AIMessage(content=result, name="publisher")],
+                    "task_completed": False
+                }
+            )
+
+    # Build social media team graph
+    builder = StateGraph(TeamState)
+    builder.add_node("supervisor", social_media_supervisor_node)
+    builder.add_node("linkedin_manager", linkedin_manager_node)
+    builder.add_node("twitter_manager", twitter_manager_node)
+    builder.add_node("publisher", publisher_node)
+    
+    builder.add_edge(START, "supervisor")
+    builder.add_edge("linkedin_manager", "supervisor")
+    builder.add_edge("twitter_manager", "supervisor")
+    builder.add_edge("publisher", "supervisor")
+    
+    return builder.compile()

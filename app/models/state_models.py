@@ -49,7 +49,7 @@ class ContentTeamDecision(RoutingDecision):
 
 class SocialMediaTeamDecision(RoutingDecision):
     """Routing decision for social media team supervisor"""
-    next_node: Literal["linkedin_manager", "twitter_manager", "analytics_tracker", "FINISH"]
+    next_node: Literal["linkedin_manager", "twitter_manager", "publisher", "FINISH"]
 
 
 # ============================================================================

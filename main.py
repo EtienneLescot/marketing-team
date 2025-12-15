@@ -25,8 +25,13 @@ from rich import box
 
 console = Console()
 
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
+from langgraph.errors import GraphInterrupt
+
 async def run_marketing_task(task_description: str):
-    """Run a marketing task with the hierarchical agents."""
+    """Run a marketing task with the hierarchical agents and HITL support."""
     console.print(Panel(f"[bold blue]Task:[/bold blue] {task_description}", title="🚀 Marketing Agent System", border_style="blue"))
     
     # Get streaming monitor
@@ -38,31 +43,7 @@ async def run_marketing_task(task_description: str):
     
     stream = monitor.get_stream()
     
-    # Create a layout for live monitoring
-    layout = Layout()
-    layout.split(
-        Layout(name="header", size=3),
-        Layout(name="main", ratio=1),
-        Layout(name="footer", size=3)
-    )
-    
-    # Store history for display
-    event_history = []
-    active_agents = set()
-    
-    def create_status_table():
-        table = Table(title="Active Agents", box=box.ROUNDED)
-        table.add_column("Agent", style="cyan")
-        table.add_column("Status", style="green")
-        table.add_column("Last Activity", style="dim")
-        
-        if not active_agents:
-            table.add_row("System", "Idle", datetime.now().strftime("%H:%M:%S"))
-        else:
-            for agent in active_agents:
-                table.add_row(agent, "Working...", datetime.now().strftime("%H:%M:%S"))
-        return table
-
+    # Identify event type and create rich output
     def print_event(event):
         try:
             timestamp = datetime.now().strftime("%H:%M:%S")
@@ -76,8 +57,6 @@ async def run_marketing_task(task_description: str):
                 agent = event.get('agent', 'unknown')
                 output = event.get('output', '')
                 console.print(Panel(output, title=f"🗣️  Output from [bold cyan]{agent}[/bold cyan]", border_style="green"))
-                if agent in active_agents:
-                    active_agents.discard(agent)
 
             elif event.get('type') == 'prompt':
                 agent = event.get('agent', 'unknown')
@@ -104,24 +83,29 @@ async def run_marketing_task(task_description: str):
                 agent = event['agent_name']
                 etype = event['event_type']
                 
-                if "start" in etype:
-                    active_agents.add(agent)
+                if "waiting_for_approval" in etype:
+                     # Handled by the interrupt logic, but we can log it
+                     pass
+                elif "start" in etype:
                     color = "green"
                     icon = "▶️"
+                    msg = f"{icon} [bold {color}]{agent}[/bold {color}]: started"
+                    console.print(f"[{timestamp}] {msg}")
                 elif "complete" in etype:
-                    active_agents.discard(agent)
                     color = "blue"
                     icon = "✅"
+                    msg = f"{icon} [bold {color}]{agent}[/bold {color}]: completed"
+                    console.print(f"[{timestamp}] {msg}")
                 elif "error" in etype:
-                    active_agents.discard(agent)
                     color = "red"
                     icon = "❌"
+                    msg = f"{icon} [bold {color}]{agent}[/bold {color}]: error"
+                    console.print(f"[{timestamp}] {msg}")
                 else:
                     color = "white"
                     icon = "🤖"
-                
-                msg = f"{icon} [bold {color}]{agent}[/bold {color}]: {etype}"
-                console.print(f"[{timestamp}] {msg}")
+                    # msg = f"{icon} [bold {color}]{agent}[/bold {color}]: {etype}"
+                    # console.print(f"[{timestamp}] {msg}")
                 
                 # Print specific data if available (e.g. tool usage)
                 if event.get('data') and 'tool_name' in event['data']:
@@ -132,34 +116,103 @@ async def run_marketing_task(task_description: str):
             console.print(f"[red]Error displaying event: {e}[/red]")
 
     # Subscribe to stream
-    stream.subscribe(print_event)
+    sub = stream.subscribe(print_event)
     
     console.print("[dim]Starting monitor...[/dim]")
     
-    # Create workflow
-    workflow = create_marketing_workflow()
+    # Initialize MemorySaver for persistence
+    memory = MemorySaver()
     
-    # Execute task with progress spinner
-    with console.status("[bold green]Executing Marketing Workflow...[/bold green]", spinner="dots"):
-        result = await workflow.ainvoke({
-            "messages": [HumanMessage(content=task_description)],
-            "iteration_count": 0,
-            "workflow_status": "running",
-            "start_time": datetime.now()
-        })
+    # Create workflow with checkpointer
+    workflow = create_marketing_workflow(checkpointer=memory)
+    
+    # Thread config for persistence
+    thread_config = {"configurable": {"thread_id": "1"}}
+    
+    # Initial input
+    initial_input = {
+        "messages": [HumanMessage(content=task_description)],
+        "iteration_count": 0,
+        "workflow_status": "running",
+        "start_time": datetime.now()
+    }
+    
+    current_input = initial_input
+    resume_mode = False
+    
+    while True:
+        try:
+            # Execute with streaming to catch interrupts
+            # We look for the `__interrupt__` event or just interruption of the stream
+            
+            # Using basic invoke for simplicity as interrupt handling raises GraphInterrupt
+            # But wait, with checkpointer, we need to inspect state after run
+            
+            # Streaming approach
+            async for event in workflow.astream(current_input if not resume_mode else Command(resume=current_input), thread_config):
+                pass
+            
+            # If we reach here without exception, check if finished
+            snapshot = workflow.get_state(thread_config)
+            if not snapshot.next:
+                console.print(Panel("Task Completed Successfully", style="bold green"))
+                break
+            else:
+                # If there are next steps but stream finished, we might be interrupted? 
+                # Actually, stream() yields events. If it pauses for interrupt, it just stops yielding.
+                # We need to check if there are tasks and if they have interrupts.
+                if snapshot.tasks and snapshot.tasks[0].interrupts:
+                    interrupt_value = snapshot.tasks[0].interrupts[0].value
+                    console.print(Panel(f"[bold red]INTERRUPT:[/bold red] {interrupt_value}", border_style="red"))
+                    
+                    # Ask user for input
+                    user_input = console.input("[bold yellow]Enter 'approved' to publish or providing feedback:[/bold yellow] ")
+                    
+                    # Prepare to resume
+                    current_input = user_input
+                    resume_mode = True
+                    continue
+            
+            break
+
+        except GraphInterrupt:
+            # Handle interrupt specifically if raised
+            snapshot = workflow.get_state(thread_config)
+            if snapshot.tasks and snapshot.tasks[0].interrupts:
+                interrupt_value = snapshot.tasks[0].interrupts[0].value
+                console.print(Panel(f"[bold red]INTERRUPT:[/bold red] {interrupt_value}", border_style="red"))
+                
+                # Ask user for input
+                user_input = console.input("[bold yellow]Enter 'approved' to publish or providing feedback:[/bold yellow] ")
+                
+                # Prepare to resume
+                current_input = user_input
+                resume_mode = True
+                continue
+            else:
+                 console.print("[yellow]Graph interrupted but no interrupt value found.[/yellow]")
+                 break
+
+        except Exception as e:
+            console.print(f"[red]Error during execution: {e}[/red]")
+            import traceback
+            traceback.print_exc()
+            break
+            
+    # Final cleanup
+    # stream.unsubscribe(sub) # if subscribe returns anything, standard doesn't return handle usually or depends on impl
     
     # Display final results
-    console.print(Panel("Task Completed Successfully", style="bold green"))
-    
-    # Show output messages
-    messages = result.get("messages", [])
+    snapshot = workflow.get_state(thread_config)
+    messages = snapshot.values.get("messages", [])
     if messages:
         for msg in messages:
             if isinstance(msg, AIMessage) or (hasattr(msg, 'name') and msg.name not in ['user', 'system']):
                 name = getattr(msg, 'name', 'Assistant')
                 console.print(Panel(msg.content, title=f"📄 Final Output: {name}", border_style="blue"))
 
-    return result
+    return snapshot.values
+
 
 def print_help():
     """Print help information."""

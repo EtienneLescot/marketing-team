@@ -127,6 +127,7 @@ DECISION GUIDELINES:
 - **Analyze what's been done**: Check if research has been completed (look for web_researcher or data_analyst in messages with actual results)
 - **If research is done**: Route to content_team for content creation
 - **If content is done**: Route to social_media_team for publishing
+- **Inside Social Media Team**: If content is formatted (by managers), route to `publisher` for approval.
 - **If all phases are complete**: Route to FINISH with should_terminate=True
 
 INSTRUCTION GUIDELINES:
@@ -135,12 +136,14 @@ INSTRUCTION GUIDELINES:
 - Example for `web_researcher`: "Search for recent competitors of stimm-ai/stimm and their pricing models."
 - Example for `data_analyst`: "Analyze the search results provided by web_researcher and identify key market gaps."
 - Example for `content_writer`: "Draft a blog post highlighting the advantages of stimm-ai over the competitors found in the research."
+- Example for `publisher`: "Review the formatting LinkedIn post and publish it."
 
 SPECIFIC RULES:
 1. If task mentions "promote", "market", "launch", "campaign" AND no research has been done → Start with research_team
 2. If research results are present in messages → Route to content_team
 3. If content has been created → Route to social_media_team
-4. If social media planning is done → Route to FINISH
+4. If social media content (linkedin/twitter) is ready → Route to publisher
+5. If publisher has finished → Route to FINISH
 
 {format_instructions}
 
@@ -351,10 +354,10 @@ def create_content_team_router(llm: BaseChatModel) -> StructuredRouter:
 
 def create_social_media_team_router(llm: BaseChatModel) -> StructuredRouter:
     """Create router for social media team supervisor"""
-    available_nodes = ["linkedin_manager", "twitter_manager", "analytics_tracker"]
+    available_nodes = ["linkedin_manager", "twitter_manager", "publisher"]
     return StructuredRouter(
         llm=llm,
         decision_model=SocialMediaTeamDecision,
         available_nodes=available_nodes,
-        max_iterations=2
+        max_iterations=3
     )
