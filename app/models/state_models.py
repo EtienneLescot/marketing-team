@@ -18,6 +18,7 @@ class RoutingDecision(BaseModel):
     """Base model for routing decisions"""
     next_node: str = Field(description="Next node to route to")
     reasoning: str = Field(description="Reasoning for the decision")
+    instructions: str = Field(description="Specific, actionable instructions for the next agent to execute")
     confidence: float = Field(description="Confidence score (0-1)", ge=0, le=1)
     should_terminate: bool = Field(
         description="Whether to terminate the workflow", 

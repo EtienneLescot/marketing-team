@@ -113,6 +113,7 @@ class StructuredRouter:
 Available nodes to route to: {', '.join(self.available_nodes)}
 
 Your task is to analyze the CURRENT STATE and decide which node should handle it next.
+You MUST also provide specific, actionable INSTRUCTIONS for that node.
 
 CRITICAL GUIDANCE FOR COMPLEX TASKS:
 1. **High-level tasks** (e.g., "promote my product", "create marketing plan", "launch campaign") require MULTIPLE teams working in sequence
@@ -123,10 +124,17 @@ CRITICAL GUIDANCE FOR COMPLEX TASKS:
 6. **Strategy tasks**: Planning, coordination, multi-phase execution
 
 DECISION GUIDELINES:
-- **Analyze what's been done**: Check if research has been completed (look for web_researcher or data_analyst in messages)
+- **Analyze what's been done**: Check if research has been completed (look for web_researcher or data_analyst in messages with actual results)
 - **If research is done**: Route to content_team for content creation
 - **If content is done**: Route to social_media_team for publishing
 - **If all phases are complete**: Route to FINISH with should_terminate=True
+
+INSTRUCTION GUIDELINES:
+- The `instructions` field MUST be a clear, specific command for the next agent.
+- DO NOT just repeat the user's high-level goal.
+- Example for `web_researcher`: "Search for recent competitors of stimm-ai/stimm and their pricing models."
+- Example for `data_analyst`: "Analyze the search results provided by web_researcher and identify key market gaps."
+- Example for `content_writer`: "Draft a blog post highlighting the advantages of stimm-ai over the competitors found in the research."
 
 SPECIFIC RULES:
 1. If task mentions "promote", "market", "launch", "campaign" AND no research has been done → Start with research_team
@@ -146,7 +154,8 @@ Important rules:
 Example output for complex task "Promote my GitHub repository" AFTER research:
 {{
     "next_node": "content_team",
-    "reasoning": "Research phase completed (web_researcher provided search results). Now need content creation phase: write blog posts, create social media content based on research findings",
+    "reasoning": "Research phase completed (web_researcher provided search results). Now need content creation phase.",
+    "instructions": "Create a content strategy and draft an initial blog post based on the competitor analysis provided by the research team.",
     "confidence": 0.9,
     "should_terminate": false
 }}"""

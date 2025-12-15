@@ -78,6 +78,12 @@ async def run_marketing_task(task_description: str):
                 console.print(Panel(output, title=f"🗣️  Output from [bold cyan]{agent}[/bold cyan]", border_style="green"))
                 if agent in active_agents:
                     active_agents.discard(agent)
+
+            elif event.get('type') == 'prompt':
+                agent = event.get('agent', 'unknown')
+                prompt = event.get('prompt', '')
+                console.print(Panel(prompt, title=f"📝 Prompt for [bold yellow]{agent}[/bold yellow]", border_style="yellow", style="dim"))
+
             
             elif event.get('type') == 'routing':
                 supervisor = event.get('supervisor', 'unknown')
@@ -89,6 +95,10 @@ async def run_marketing_task(task_description: str):
                 console.print(f"[{timestamp}] {msg}")
                 if reasoning:
                     console.print(f"   [dim]Reasoning: {reasoning}[/dim]")
+                
+                instructions = event.get('decision', {}).get('instructions', '')
+                if instructions:
+                    console.print(f"   [bold yellow]Instructions: {instructions}[/bold yellow]")
             
             elif 'agent_name' in event:
                 agent = event['agent_name']

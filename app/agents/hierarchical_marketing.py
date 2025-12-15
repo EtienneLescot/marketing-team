@@ -95,6 +95,10 @@ def create_research_team(config: AgentConfig) -> StateGraph:
                 "routing_decision": decision.dict()
             }
             
+            # Add instructions to messages if present
+            if decision.instructions:
+                update_data["messages"] = state.get("messages", []) + [HumanMessage(content=decision.instructions, name="supervisor_instructions")]
+            
             if decision.should_terminate or decision.next_node == "FINISH":
                 update_data["team_status"] = "completed"
                 return Command(goto=END, update=update_data)
@@ -112,15 +116,37 @@ def create_research_team(config: AgentConfig) -> StateGraph:
         monitor = get_global_monitor()
         
         try:
-            # Extract original task
-            original_task = extract_original_task(state["messages"])
-            if not original_task:
-                original_task = state["messages"][-1].content if state["messages"] else "No task provided"
+            # Extract specific task from supervisor instructions
+            original_task = state["messages"][-1].content if state["messages"] else "No task provided"
             
             # Get search tool
             search_tool = config.tool_registry.get_tool("tavily_search") or \
                          config.tool_registry.get_tool("mock_search")
             
+            # Get researcher model (reusing data analyst model config if specific one doesn't exist, or we can add one)
+            # For now, we'll request "web_researcher" config, assuming it exists or falls back
+            try:
+                llm = config.llm_provider.get_agent_config("web_researcher").get_model()
+            except:
+                # Fallback to data analyst model if web_researcher not explicitly configured with model
+                llm = config.llm_provider.get_agent_config("data_analyst").get_model()
+
+            # Generate search query using LLM
+            query_prompt = f"You are an expert web researcher. Given the user's task: '{original_task}', generate a single, highly effective search query to find relevant information. Return ONLY the query, no quotes or explanation."
+            
+            # Record prompt
+            monitor.record_agent_prompt("web_researcher", f"System: Generate search query\nUser: {query_prompt}")
+            
+            print(f"DEBUG: Web Researcher generating query for: {original_task[:50]}...")
+            try:
+                # Use a specific timeout for query generation
+                response = await asyncio.wait_for(llm.ainvoke([{"role": "user", "content": query_prompt}]), timeout=30.0)
+                search_query = response.content.strip().strip('"').strip("'")
+                print(f"DEBUG: Web Researcher generated query: {search_query}")
+            except Exception as e:
+                print(f"DEBUG: Web Researcher query generation failed: {e}")
+                search_query = original_task  # Fallback to original task
+
             if not search_tool:
                 result = "Search tool not available"
                 monitor.record_event(
@@ -132,7 +158,7 @@ def create_research_team(config: AgentConfig) -> StateGraph:
                 # Execute search with monitoring
                 with TimerContext(monitor, "web_researcher", "search_tool"):
                     search_result = await search_tool.execute(
-                        query=original_task,
+                        query=search_query,
                         max_results=5,
                         search_depth="basic"
                     )
@@ -141,14 +167,14 @@ def create_research_team(config: AgentConfig) -> StateGraph:
                 monitor.record_tool_call(
                     agent_name="web_researcher",
                     tool_name=search_tool.metadata.name,
-                    params={"query": original_task, "max_results": 5},
+                    params={"query": search_query, "max_results": 5},
                     result=f"Found {search_result.get('total_results', 0)} results",
                     duration_ms=None  # Already recorded by TimerContext
                 )
                 
             # Format result
                 if search_result.get("answer"):
-                    result = f"Search results for '{original_task}':\n\n{search_result['answer']}"
+                    result = f"Search results for query '{search_query}' (Task: '{original_task}'):\n\n{search_result['answer']}"
                     
                     # Add summary of top results
                     if search_result.get("results"):
@@ -196,10 +222,8 @@ def create_research_team(config: AgentConfig) -> StateGraph:
     async def data_analyst_node(state: TeamState) -> Command[Literal["supervisor"]]:
         """Data analyst agent"""
         try:
-            # Extract original task
-            original_task = extract_original_task(state["messages"])
-            if not original_task:
-                original_task = state["messages"][-1].content if state["messages"] else "No task provided"
+            # Extract specific task from supervisor instructions
+            original_task = state["messages"][-1].content if state["messages"] else "No task provided"
             
             # Get data analyst model
             llm = config.llm_provider.get_agent_config("data_analyst").get_model()
@@ -211,6 +235,11 @@ def create_research_team(config: AgentConfig) -> StateGraph:
                 {"role": "user", "content": f"Please analyze the following task/data and provide insights:\n\n{original_task}"}
             ]
             
+            # Record prompt
+            monitor = get_global_monitor()
+            formatted_prompt = f"System: {system_prompt}\n\nUser: Please analyze the following task/data and provide insights:\n\n{original_task}"
+            monitor.record_agent_prompt("data_analyst", formatted_prompt)
+            
             # Execute LLM call
             print(f"DEBUG: Data Analyst calling LLM for task: {original_task[:50]}...")
             try:
@@ -220,6 +249,9 @@ def create_research_team(config: AgentConfig) -> StateGraph:
             except asyncio.TimeoutError:
                 print("DEBUG: Data Analyst timeout")
                 analysis_result = "Targeted analysis: Timeout waiting for detailed analysis. Focusing on key metrics based on available data."
+            except Exception as e:
+                print(f"DEBUG: Data Analyst analysis failed: {e}")
+                analysis_result = f"Analysis failed: {str(e)}"
             
             # Record agent output
             monitor = get_global_monitor()
@@ -317,6 +349,10 @@ def create_content_team(config: AgentConfig) -> StateGraph:
                 "current_agent": decision.next_node if decision.next_node != "FINISH" else None,
                 "routing_decision": decision.dict()
             }
+
+            # Add instructions to messages if present
+            if decision.instructions:
+                update_data["messages"] = state.get("messages", []) + [HumanMessage(content=decision.instructions, name="supervisor_instructions")]
             
             if decision.should_terminate or decision.next_node == "FINISH":
                 return Command(goto=END, update=update_data)
@@ -332,10 +368,8 @@ def create_content_team(config: AgentConfig) -> StateGraph:
     async def content_writer_node(state: TeamState) -> Command[Literal["supervisor"]]:
         """Content writer agent"""
         try:
-            # Extract original task
-            original_task = extract_original_task(state["messages"])
-            if not original_task:
-                original_task = state["messages"][-1].content if state["messages"] else "No task provided"
+            # Extract specific task from supervisor instructions
+            original_task = state["messages"][-1].content if state["messages"] else "No task provided"
                 
             # Get context from previous messages (e.g. research results)
             context = "\n".join([f"{msg.name}: {msg.content}" for msg in state["messages"] if hasattr(msg, "name") and msg.name not in ["user", "system"]])
@@ -349,6 +383,11 @@ def create_content_team(config: AgentConfig) -> StateGraph:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Task: {original_task}\n\nContext/Research:\n{context}\n\nPlease create high-quality marketing content based on the above."}
             ]
+            
+            # Record prompt
+            monitor = get_global_monitor()
+            formatted_prompt = f"System: {system_prompt}\n\nUser: Task: {original_task}\n\nContext/Research:\n{context}\n\nPlease create high-quality marketing content based on the above."
+            monitor.record_agent_prompt("content_writer", formatted_prompt)
             
             # Execute LLM call
             print(f"DEBUG: Content Writer calling LLM for task: {original_task[:50]}...")
@@ -397,10 +436,8 @@ def create_content_team(config: AgentConfig) -> StateGraph:
     async def seo_specialist_node(state: TeamState) -> Command[Literal["supervisor"]]:
         """SEO specialist agent"""
         try:
-            # Extract original task
-            original_task = extract_original_task(state["messages"])
-            if not original_task:
-                original_task = state["messages"][-1].content if state["messages"] else "No task provided"
+            # Extract specific task from supervisor instructions
+            original_task = state["messages"][-1].content if state["messages"] else "No task provided"
                 
             # Get content to optimize (from last message if possible)
             content_to_optimize = state["messages"][-1].content if state["messages"] else ""
@@ -414,6 +451,11 @@ def create_content_team(config: AgentConfig) -> StateGraph:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Task: {original_task}\n\nContent to analyze/optimize:\n{content_to_optimize}\n\nPlease provide SEO analysis and recommendations."}
             ]
+            
+            # Record prompt
+            monitor = get_global_monitor()
+            formatted_prompt = f"System: {system_prompt}\n\nUser: Task: {original_task}\n\nContent to analyze/optimize:\n{content_to_optimize}\n\nPlease provide SEO analysis and recommendations."
+            monitor.record_agent_prompt("seo_specialist", formatted_prompt)
             
             # Execute LLM call
             print(f"DEBUG: SEO Specialist calling LLM for task: {original_task[:50]}...")

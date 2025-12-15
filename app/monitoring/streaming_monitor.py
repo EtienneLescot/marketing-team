@@ -207,6 +207,24 @@ class StreamingMonitor(BasicMonitor):
         """Record interaction between agents"""
         self.stream.record_agent_interaction(from_agent, to_agent, action, data)
     
+    def record_agent_prompt(self, agent_name: str, prompt: str):
+        """Record agent prompt"""
+        prompt_event = {
+            "timestamp": datetime.now().isoformat(),
+            "agent": agent_name,
+            "prompt": prompt,
+            "type": "prompt"
+        }
+        self.stream.add_event(prompt_event)
+        
+        # Print to console
+        print(f"\n{'='*60}")
+        print(f"AGENT PROMPT: {agent_name}")
+        print(f"{'='*60}")
+        print(prompt[:500] + ("..." if len(prompt) > 500 else ""))
+        print(f"{'='*60}\n")
+
+    
     def get_stream(self) -> EventStream:
         """Get event stream"""
         return self.stream
