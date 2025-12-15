@@ -1023,7 +1023,57 @@ def create_social_media_team(config: AgentConfig) -> StateGraph:
         user_feedback = interrupt(approval_request)
         
         if str(user_feedback).lower().strip() == "approved":
-            result = f"✅ Successfully published to {platform}!"
+            # Real Publishing Logic
+            import os
+            import requests
+            import json
+            
+            if platform == "LinkedIn":
+                access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
+                user_urn = os.getenv("LINKEDIN_USER_URN")
+                
+                if not access_token or not user_urn:
+                    result = "❌ Failed to publish: Missing LINKEDIN_ACCESS_TOKEN or LINKEDIN_USER_URN in .env"
+                else:
+                    try:
+                        print("DEBUG: Attempting to publish to LinkedIn API...")
+                        post_url = "https://api.linkedin.com/v2/ugcPosts"
+                        headers = {
+                            "Authorization": f"Bearer {access_token}",
+                            "Content-Type": "application/json",
+                            "X-Restli-Protocol-Version": "2.0.0"
+                        }
+                        
+                        payload = {
+                            "author": user_urn,
+                            "lifecycleState": "PUBLISHED",
+                            "specificContent": {
+                                "com.linkedin.ugc.ShareContent": {
+                                    "shareCommentary": {
+                                        "text": content_to_publish
+                                    },
+                                    "shareMediaCategory": "NONE"
+                                }
+                            },
+                            "visibility": {
+                                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+                            }
+                        }
+                        
+                        response = requests.post(post_url, headers=headers, json=payload)
+                        print(f"DEBUG: LinkedIn API Response: {response.status_code} - {response.text}")
+                        
+                        if response.status_code in [200, 201]:
+                            post_url = f"https://www.linkedin.com/feed/update/{response.json().get('id')}"
+                            result = f"✅ Successfully published to LinkedIn! View post: {post_url}"
+                        else:
+                            result = f"❌ LinkedIn API Error: {response.status_code} - {response.text}"
+                            
+                    except Exception as e:
+                        result = f"❌ Publishing exception: {str(e)}"
+            else:
+                result = f"✅ (Mock) Successfully published to {platform}!"
+
             monitor.record_agent_output("publisher", result)
             return Command(
                 goto="supervisor", 
