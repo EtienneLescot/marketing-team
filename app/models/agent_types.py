@@ -16,6 +16,7 @@ class AgentConfig:
     tool_names: Optional[List[str]] = None # List of tool names from config
     system_prompt: str = ""
     managed_agents: Optional[List[str]] = None
+    depends_on: Optional[List[str]] = None  # List of agent names this agent depends on
     output_schema: Optional[str] = None
     require_approval: bool = False
 

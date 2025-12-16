@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List
 from langchain_core.messages import HumanMessage, AIMessage
-from app.agents.dynamic_graph_builder import DynamicGraphBuilder, create_dynamic_workflow
+from app.agents.orchestrated_graph_builder import OrchestratedGraphBuilder, create_orchestrated_workflow
 from app.monitoring.streaming_monitor import get_global_streaming_monitor
 
 # Rich imports
@@ -40,9 +40,9 @@ async def run_task(task_description: str, config_path: str = "config/agents.yaml
         border_style="blue"
     ))
     
-    # Initialize DynamicGraphBuilder
+    # Initialize OrchestratedGraphBuilder
     try:
-        builder = DynamicGraphBuilder(config_path)
+        builder = OrchestratedGraphBuilder(config_path)
     except FileNotFoundError as e:
         console.print(f"[red]Error loading config: {e}[/red]")
         console.print("[yellow]Available configs:[/yellow]")
@@ -172,7 +172,9 @@ async def run_task(task_description: str, config_path: str = "config/agents.yaml
         "messages": [HumanMessage(content=task_description)],
         "iteration_count": 0,
         "workflow_status": "running",
-        "start_time": datetime.now()
+        "start_time": datetime.now(),
+        "original_task": task_description,
+        "current_task": task_description
     }
     
     current_input = initial_input
@@ -322,7 +324,7 @@ async def _list_available_configs(console: Console):
 async def _list_available_entry_points(config_path: str, console: Console):
     """List available entry points for a configuration"""
     try:
-        builder = DynamicGraphBuilder(config_path)
+        builder = OrchestratedGraphBuilder(config_path)
     except FileNotFoundError as e:
         console.print(f"[red]Error loading config: {e}[/red]")
         return
@@ -373,7 +375,7 @@ async def _validate_configuration(config_path: str, console: Console):
     console.print(Panel(f"Validating: {config_path}", style="bold yellow"))
     
     try:
-        builder = DynamicGraphBuilder(config_path)
+        builder = OrchestratedGraphBuilder(config_path)
     except FileNotFoundError as e:
         console.print(f"[red]❌ Config file not found: {e}[/red]")
         return
@@ -415,13 +417,13 @@ async def interactive_mode(config_path: str = "config/agents.yaml"):
     
     # Load builder for validation
     try:
-        builder = DynamicGraphBuilder(config_path)
+        builder = OrchestratedGraphBuilder(config_path)
         console.print(f"[dim]Using config: {config_path}[/dim]")
     except Exception as e:
         console.print(f"[red]Error loading config: {e}[/red]")
         console.print("[yellow]Falling back to default config[/yellow]")
         config_path = "config/agents.yaml"
-        builder = DynamicGraphBuilder(config_path)
+        builder = OrchestratedGraphBuilder(config_path)
     
     while True:
         try:
@@ -441,7 +443,7 @@ async def interactive_mode(config_path: str = "config/agents.yaml"):
             elif task.lower() == "config":
                 new_config = console.input("[bold]Enter config path:[/bold] ")
                 try:
-                    builder = DynamicGraphBuilder(new_config)
+                    builder = OrchestratedGraphBuilder(new_config)
                     config_path = new_config
                     console.print(f"[green]Switched to config: {config_path}[/green]")
                 except Exception as e:

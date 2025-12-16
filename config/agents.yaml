@@ -17,7 +17,7 @@ providers:
     base_url: null # Defaults to standard OpenAI URL
     api_key_env: "OPENAI_API_KEY"
 
-# Agent configurations
+# Agent configurations with dependencies
 agents:
   # ============================================================================
   # Superviseur Principal (Niveau le plus élevé)
@@ -57,6 +57,7 @@ agents:
       X-Title: "Web Researcher Agent"
     tools:
       - "tavily_search"
+    # No dependencies - first step in research
 
   - name: "data_analyst"
     role: "worker"
@@ -64,6 +65,8 @@ agents:
     headers:
       HTTP-Referer: "https://data-analyst.com"
       X-Title: "Data Analyst Agent"
+    depends_on:
+      - "web_researcher"  # Needs research data to analyze
 
   # ============================================================================
   # Équipe de Création de Contenu
@@ -79,6 +82,8 @@ agents:
       - "content_writer"
       - "seo_specialist"
       - "visual_designer"
+    depends_on:
+      - "research_team_supervisor"  # Content needs research data
 
   - name: "content_writer"
     role: "worker"
@@ -86,6 +91,8 @@ agents:
     headers:
       HTTP-Referer: "https://content-writer.com"
       X-Title: "Content Writer Agent"
+    depends_on:
+      - "data_analyst"  # Write content based on analyzed data
 
   - name: "seo_specialist"
     role: "worker"
@@ -93,6 +100,8 @@ agents:
     headers:
       HTTP-Referer: "https://seo-specialist.com"
       X-Title: "SEO Specialist Agent"
+    depends_on:
+      - "content_writer"  # Optimize content after it's written
 
   - name: "visual_designer"
     role: "worker"
@@ -100,6 +109,8 @@ agents:
     headers:
       HTTP-Referer: "https://visual-designer.com"
       X-Title: "Visual Designer Agent"
+    depends_on:
+      - "content_writer"  # Design visuals for the content
 
   # ============================================================================
   # Équipe des Médias Sociaux
@@ -115,6 +126,8 @@ agents:
       - "linkedin_manager"
       - "twitter_manager"
       - "analytics_tracker"
+    depends_on:
+      - "content_team_supervisor"  # Social media needs content
 
   - name: "linkedin_manager"
     role: "worker"
@@ -125,6 +138,9 @@ agents:
     require_approval: true
     tools:
       - "linkedin_post"
+    depends_on:
+      - "seo_specialist"  # Use SEO-optimized content
+      - "visual_designer"  # Use designed visuals
 
   - name: "twitter_manager"
     role: "worker"
@@ -133,6 +149,9 @@ agents:
       HTTP-Referer: "https://twitter-manager.com"
       X-Title: "Twitter Manager Agent"
     require_approval: true
+    depends_on:
+      - "seo_specialist"  # Use SEO-optimized content
+      - "visual_designer"  # Use designed visuals
 
   - name: "analytics_tracker"
     role: "worker"
@@ -140,6 +159,9 @@ agents:
     headers:
       HTTP-Referer: "https://analytics-tracker.com"
       X-Title: "Analytics Tracker Agent"
+    depends_on:
+      - "linkedin_manager"  # Track after posting
+      - "twitter_manager"   # Track after posting
 
   # ============================================================================
   # Agents de Support (Optionnels)
@@ -150,6 +172,8 @@ agents:
     headers:
       HTTP-Referer: "https://strategy-agent.com"
       X-Title: "Strategy Agent"
+    depends_on:
+      - "analytics_tracker"  # Strategy based on analytics
 
   - name: "community_manager"
     role: "worker"
@@ -157,3 +181,5 @@ agents:
     headers:
       HTTP-Referer: "https://community-manager.com"
       X-Title: "Community Manager Agent"
+    depends_on:
+      - "social_media_team_supervisor"  # Community management after social media

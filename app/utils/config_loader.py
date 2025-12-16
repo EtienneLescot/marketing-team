@@ -165,6 +165,7 @@ class ConfigurationLoader:
                 headers=agent_def.get('headers', None),
                 system_prompt=system_prompt,
                 managed_agents=agent_def.get('managed_agents', None),
+                depends_on=agent_def.get('depends_on', None),
                 output_schema=agent_def.get('output_schema', None),
                 require_approval=agent_def.get('require_approval', False),
                 tool_names=agent_def.get('tools', None)

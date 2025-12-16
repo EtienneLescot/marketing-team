@@ -325,35 +325,50 @@ def clean_task_text(task_text: str) -> str:
     repo_info = extract_github_repo_info(task_text)
     
     if repo_info["has_repo"]:
-        # Remove the URL from the text
+        # Keep the URL in the text for tasks that require it
+        # Only clean if the URL is redundant
         url_pattern = re.escape(repo_info["repo_url"])
-        cleaned = re.sub(url_pattern, '', task_text)
         
-        # Also remove common URL preface phrases
-        url_phrases = [
-            r'here is the repo url:',
-            r'here is the repository:',
-            r'repository url:',
-            r'github url:',
-            r'url:',
-            r'link:'
-        ]
+        # Check if the task explicitly mentions promoting or sharing the repo
+        # If so, keep the URL as it's essential information
+        promote_keywords = ['promote', 'share', 'post about', 'announce', 'launch']
+        has_promote_keyword = any(keyword in task_text.lower() for keyword in promote_keywords)
         
-        for phrase in url_phrases:
-            cleaned = re.sub(phrase, '', cleaned, flags=re.IGNORECASE)
-        
-        # Clean up extra spaces and punctuation
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-        cleaned = re.sub(r'[.,;:\s]+$', '', cleaned)
-        
-        # If the cleaned text is empty or just whitespace, create a concise version
-        if not cleaned or len(cleaned.strip()) < 10:
-            return f"Promote GitHub repository: {repo_info['full_name']}"
-        
-        # Add repo name context if not already mentioned
-        if repo_info["full_name"].lower() not in cleaned.lower():
-            cleaned = f"{cleaned} (Repository: {repo_info['full_name']})"
-        
-        return cleaned
+        if has_promote_keyword:
+            # For promotion tasks, keep the URL in the text
+            # Just ensure repo name is included
+            if repo_info["full_name"].lower() not in task_text.lower():
+                return f"{task_text} (Repository: {repo_info['full_name']})"
+            return task_text
+        else:
+            # For other tasks, clean the URL
+            cleaned = re.sub(url_pattern, '', task_text)
+            
+            # Also remove common URL preface phrases
+            url_phrases = [
+                r'here is the repo url:',
+                r'here is the repository:',
+                r'repository url:',
+                r'github url:',
+                r'url:',
+                r'link:'
+            ]
+            
+            for phrase in url_phrases:
+                cleaned = re.sub(phrase, '', cleaned, flags=re.IGNORECASE)
+            
+            # Clean up extra spaces and punctuation
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+            cleaned = re.sub(r'[.,;:\s]+$', '', cleaned)
+            
+            # If the cleaned text is empty or just whitespace, create a concise version
+            if not cleaned or len(cleaned.strip()) < 10:
+                return f"Promote GitHub repository: {repo_info['full_name']}"
+            
+            # Add repo name context if not already mentioned
+            if repo_info["full_name"].lower() not in cleaned.lower():
+                cleaned = f"{cleaned} (Repository: {repo_info['full_name']})"
+            
+            return cleaned
     
     return task_text
