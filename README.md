@@ -368,6 +368,37 @@ uv run pytest tests/ --cov=app --cov-report=html
 - Verify rate limits and quotas
 - Enable debug mode for detailed error messages
 
+### LinkedIn-Specific Issues
+
+**"LinkedIn API Error: 403 - ACCESS_DENIED"**
+- **Personal profile posting**: Works with `w_member_social` scope
+- **Company page posting**: Requires `w_organization_social` scope and admin access
+- **Common causes**:
+  1. Access token doesn't have required scopes (`w_member_social` for personal, `w_organization_social` for company)
+  2. User is not an admin of the company page
+  3. Company URN format is incorrect
+  4. Access token is expired or invalid
+- **Solution**: Run `python scripts/get_linkedin_token.py` to regenerate credentials with correct scopes
+
+**Testing LinkedIn without API credentials**
+- The system includes a mock LinkedIn tool for testing
+- If `LINKEDIN_ACCESS_TOKEN` is not set, the system automatically uses the mock tool
+- Mock tool simulates posting with 95% success rate for testing
+
+**Successful personal posting example**
+```
+DEBUG LinkedInPostTool: Response status: 201
+DEBUG LinkedInPostTool: Response text: {"id":"urn:li:share:7406722782149083136"}
+✅ Successfully published to LinkedIn personal profile! View post: https://www.linkedin.com/feed/update/urn:li:share:7406722782149083136
+```
+
+**Environment variables for LinkedIn**
+```
+LINKEDIN_ACCESS_TOKEN='your_access_token_here'
+LINKEDIN_USER_URN='urn:li:person:your_user_id'  # For personal posting
+LINKEDIN_COMPANY_URN='urn:li:organization:company_id'  # For company posting (optional)
+```
+
 ## License
 
 MIT License - see LICENSE file for details.

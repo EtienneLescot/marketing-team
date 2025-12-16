@@ -6,9 +6,11 @@ Tools package for hierarchical marketing agents system.
 import os
 from typing import Dict, Any
 
-from app.tools.tool_registry import ToolRegistry, BaseTool
+from app.tools.tool_registry import ToolRegistry, BaseTool, ToolMetadata
 from app.tools.tavily_search import create_tavily_search_tool
 from app.tools.mock_search import create_mock_search_tool
+from app.tools.linkedin import create_linkedin_tool
+from app.tools.mock_linkedin import create_mock_linkedin_tool
 
 
 def create_tool_registry() -> ToolRegistry:
@@ -18,6 +20,10 @@ def create_tool_registry() -> ToolRegistry:
     # Create search tool (Tavily if API key available, otherwise mock)
     search_tool = create_search_tool()
     registry.register_tool(search_tool)
+    
+    # Create LinkedIn tool (real if credentials available, otherwise mock)
+    linkedin_tool = create_linkedin_tool_choice()
+    registry.register_tool(linkedin_tool)
     
     # Create other tools (to be implemented)
     # registry.register_tool(create_github_tool())
@@ -41,6 +47,22 @@ def create_search_tool() -> BaseTool:
         return create_mock_search_tool()
 
 
+def create_linkedin_tool_choice() -> BaseTool:
+    """Create appropriate LinkedIn tool based on credentials availability"""
+    linkedin_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
+    
+    if linkedin_token:
+        print("✅ Using real LinkedIn API (requires valid credentials)")
+        return create_linkedin_tool()
+    else:
+        print("⚠️  Using mock LinkedIn tool (LINKEDIN_ACCESS_TOKEN not set)")
+        print("   To use real LinkedIn API:")
+        print("   1. Run: python scripts/get_linkedin_token.py")
+        print("   2. Set LINKEDIN_ACCESS_TOKEN in your .env file")
+        print("   3. Set LINKEDIN_COMPANY_URN for company posts")
+        return create_mock_linkedin_tool()
+
+
 # Export main classes and functions
 __all__ = [
     "ToolRegistry",
@@ -48,4 +70,5 @@ __all__ = [
     "ToolMetadata",
     "create_tool_registry",
     "create_search_tool",
+    "create_linkedin_tool_choice",
 ]

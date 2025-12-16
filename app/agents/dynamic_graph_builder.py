@@ -337,11 +337,17 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                 # Get LLM model
                 llm = supervisor_config.get_model()
                 
-                # Get routing decision
-                response = await llm.ainvoke([{"role": "user", "content": routing_prompt}])
-                
-                # Parse JSON response
-                decision = json.loads(response.content)
+                # Get routing decision with timeout
+                try:
+                    response = await asyncio.wait_for(llm.ainvoke([{"role": "user", "content": routing_prompt}]), timeout=30.0)
+                    # Parse JSON response
+                    decision = json.loads(response.content)
+                except asyncio.TimeoutError:
+                    print(f"{supervisor_name}: LLM timeout, using fallback routing")
+                    return self._fallback_routing(state, managed_agents)
+                except Exception as e:
+                    print(f"{supervisor_name}: LLM error: {e}, using fallback routing")
+                    return self._fallback_routing(state, managed_agents)
                 
                 # Log routing decision
                 monitor = get_global_monitor()
@@ -413,9 +419,16 @@ Please complete the task."""
                 monitor = get_global_monitor()
                 monitor.record_agent_prompt(worker_name, prompt)
                 
-                # Execute LLM call
-                response = await asyncio.wait_for(llm.ainvoke([{"role": "user", "content": prompt}]), timeout=60.0)
-                result = response.content
+                # Execute LLM call with timeout
+                try:
+                    response = await asyncio.wait_for(llm.ainvoke([{"role": "user", "content": prompt}]), timeout=30.0)
+                    result = response.content
+                except asyncio.TimeoutError:
+                    result = f"LLM call timed out after 30 seconds. Please check API connectivity."
+                    print(f"{worker_name}: LLM timeout")
+                except Exception as e:
+                    result = f"LLM call failed: {str(e)[:200]}"
+                    print(f"{worker_name}: LLM error: {e}")
                 
                 # Handle tools if worker has them
                 if worker_config.tools:
@@ -470,44 +483,55 @@ Please complete the task."""
     async def _handle_worker_tools(self, worker_name: str, worker_config, result: str, original_task: str) -> str:
         """Handle tool execution for workers"""
         # For LinkedIn posting
-        if worker_name == "linkedin_manager" and "linkedin_post" in [tool.metadata.name for tool in worker_config.tools]:
-            # Extract content to publish
-            content_to_publish = result
-            
-            # Create approval request
-            approval_request = f"Please review this LinkedIn post:\n\n{content_to_publish}\n\nType 'approved' to publish or provide feedback."
-            
-            # INTERRUPT FOR HUMAN APPROVAL
-            monitor = get_global_monitor()
-            monitor.record_event(agent_name="linkedin_manager", event_type="waiting_for_approval", data={"content": content_to_publish})
-            
-            user_feedback = interrupt(approval_request)
-            
-            if str(user_feedback).lower().strip() == "approved":
-                # Use the LinkedIn Tool
-                tool = self.tool_registry.get_tool("linkedin_post")
+        if worker_name == "linkedin_manager" and worker_config.tools:
+            # Check if linkedin_post tool is in the tools list
+            linkedin_tools = [tool for tool in worker_config.tools if hasattr(tool, 'metadata') and tool.metadata.name == "linkedin_post"]
+            if linkedin_tools:
+                # Extract content to publish
+                content_to_publish = result
                 
-                if tool:
-                    try:
-                        # Execute tool with company URN for company page posting
-                        result = await tool.execute(content_to_publish)
-                    except Exception as e:
-                        result = f"❌ Publishing exception: {str(e)}"
+                # Create approval request
+                approval_request = f"Please review this LinkedIn post:\n\n{content_to_publish}\n\nType 'approved' to publish or provide feedback."
+                
+                # INTERRUPT FOR HUMAN APPROVAL
+                monitor = get_global_monitor()
+                monitor.record_event(agent_name="linkedin_manager", event_type="waiting_for_approval", data={"content": content_to_publish})
+                
+                user_feedback = interrupt(approval_request)
+                
+                if str(user_feedback).lower().strip() == "approved":
+                    # Use the LinkedIn Tool
+                    tool = self.tool_registry.get_tool("linkedin_post")
+                    
+                    if tool:
+                        print(f"DEBUG: LinkedIn tool found, executing with content length: {len(content_to_publish)}")
+                        try:
+                            # Execute tool with company URN for company page posting
+                            result = await tool.execute(content_to_publish)
+                            print(f"DEBUG: LinkedIn tool executed successfully: {result[:100]}")
+                        except Exception as e:
+                            result = f"❌ Publishing exception: {str(e)}"
+                            print(f"DEBUG: LinkedIn tool exception: {e}")
+                    else:
+                        result = "❌ Error: LinkedIn tool not found in registry."
+                        print("DEBUG: LinkedIn tool not found in registry")
                 else:
-                    result = "❌ Error: LinkedIn tool not found in registry."
-            else:
-                result = f"❌ Publication rejected. Feedback: {user_feedback}"
+                    result = f"❌ Publication rejected. Feedback: {user_feedback}"
+                    print(f"DEBUG: Publication rejected: {user_feedback}")
         
         # Add handling for other tools here
-        elif worker_name == "web_researcher" and "tavily_search" in [tool.metadata.name for tool in worker_config.tools]:
-            # For web researcher with tavily search
-            tool = self.tool_registry.get_tool("tavily_search")
-            if tool:
-                try:
-                    search_result = await tool.execute(original_task)
-                    result = f"{result}\n\nSearch Results:\n{search_result}"
-                except Exception as e:
-                    result = f"{result}\n\n❌ Search failed: {e}"
+        elif worker_name == "web_researcher" and worker_config.tools:
+            # Check if tavily_search tool is in the tools list
+            tavily_tools = [tool for tool in worker_config.tools if hasattr(tool, 'metadata') and tool.metadata.name == "tavily_search"]
+            if tavily_tools:
+                # For web researcher with tavily search
+                tool = self.tool_registry.get_tool("tavily_search")
+                if tool:
+                    try:
+                        search_result = await tool.execute(original_task)
+                        result = f"{result}\n\nSearch Results:\n{search_result}"
+                    except Exception as e:
+                        result = f"{result}\n\n❌ Search failed: {e}"
         
         return result
     
