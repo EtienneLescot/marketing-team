@@ -3,11 +3,12 @@
 Enhanced state models for LLM-based routing with structured JSON output.
 """
 
-from typing import TypedDict, Optional, Dict, Any, List, Literal
+from typing import TypedDict, Optional, Dict, Any, List, Literal, Annotated
 from langgraph.graph import MessagesState
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+import operator
 
 
 # ============================================================================
@@ -67,25 +68,25 @@ class EnhancedMarketingState(MessagesState):
     # Routing metadata
     current_team: Optional[str] = None
     task_status: str = "pending"
-    iteration_count: int = 0
+    iteration_count: Annotated[int, operator.add] = 0
     
     # Persistence tracking
     last_checkpoint: Optional[str] = None
-    checkpoint_count: int = 0
+    checkpoint_count: Annotated[int, operator.add] = 0
     persistence_enabled: bool = True
     
     # Execution metadata
     start_time: Optional[datetime] = None
-    agent_execution_history: List[Dict[str, Any]] = []
-    routing_decision_history: List[Dict[str, Any]] = []
+    agent_execution_history: Annotated[List[Dict[str, Any]], operator.add] = []
+    routing_decision_history: Annotated[List[Dict[str, Any]], operator.add] = []
     
     # Performance metrics
-    total_agent_calls: int = 0
-    total_tool_calls: int = 0
-    estimated_cost: float = 0.0
+    total_agent_calls: Annotated[int, operator.add] = 0
+    total_tool_calls: Annotated[int, operator.add] = 0
+    estimated_cost: Annotated[float, operator.add] = 0.0
     
     # Error tracking
-    error_count: int = 0
+    error_count: Annotated[int, operator.add] = 0
     last_error: Optional[str] = None
     
     @property
@@ -185,7 +186,7 @@ class EnhancedMarketingState(MessagesState):
 class TeamState(MessagesState):
     """State for specialized teams"""
     team_name: str
-    iteration_count: int = 0
+    iteration_count: Annotated[int, operator.add] = 0
     current_agent: Optional[str] = None
     task_completed: bool = False
     

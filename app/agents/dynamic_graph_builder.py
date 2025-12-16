@@ -391,9 +391,10 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                 # Get worker config
                 worker_config = self.get_agent_config(worker_name)
                 
-                # Extract task
-                original_task = state["messages"][-1].content if state["messages"] else "No task provided"
-                context = "\n".join([f"{msg.name}: {msg.content}" for msg in state["messages"] if hasattr(msg, "name") and msg.name not in ["user", "system"]])
+                # Extract task - use original user task, not last message
+                from app.utils.message_utils import extract_original_task
+                original_task = extract_original_task(state.get("messages", [])) or "No task provided"
+                context = "\n".join([f"{msg.name}: {msg.content}" for msg in state.get("messages", []) if hasattr(msg, "name") and msg.name not in ["user", "system"]])
                 
                 # Get LLM model
                 llm = worker_config.get_model()
@@ -445,6 +446,9 @@ Please complete the task."""
                     }
                 )
                 
+            except GraphInterrupt:
+                # Re-raise GraphInterrupt to let LangGraph handle it
+                raise
             except Exception as e:
                 print(f"{worker_name} failed: {e}")
                 error_response = f"{worker_name} failed: {str(e)[:200]}"
