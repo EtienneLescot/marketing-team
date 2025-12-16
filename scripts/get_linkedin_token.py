@@ -124,24 +124,17 @@ if __name__ == "__main__":
     print("🚀 Starting LinkedIn OAuth Token Generator")
     print(f"Using Client ID: {CLIENT_ID[:5]}...***")
     
-    # Generate Auth URL with required scopes
-    # w_member_social: For personal profile posting
-    # w_organization_social: For company page posting (requires admin role)
-    # r_organization_social: For reading company page posts
-    # openid, profile, email: For user identification
+    # Generate Auth URL
     auth_url = (
         "https://www.linkedin.com/oauth/v2/authorization?"
         "response_type=code&"
         f"client_id={CLIENT_ID}&"
         f"redirect_uri={REDIRECT_URI}&"
         "state=random_state_string&"
-        "scope=openid%20profile%20w_member_social%20w_organization_social%20r_organization_social%20email"
+        "scope=openid%20profile%20w_member_social%20email"
     )
     
     print(f"\n👉 Please open this URL in your browser:\n{auth_url}\n")
-    print("⚠️  IMPORTANT: To post to company pages, you must:")
-    print("   1. Be an ADMINISTRATOR, DIRECT_SPONSORED_CONTENT_POSTER, or CONTENT_ADMIN of the company page")
-    print("   2. Grant the 'w_organization_social' permission when prompted")
     
     # Try opening browser
     try:
