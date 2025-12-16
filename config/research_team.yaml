@@ -1,0 +1,65 @@
+# Research Team Configuration
+# A focused configuration for research tasks only
+description: "Research-focused team for competitive analysis and market research"
+inherit_from: "agents.yaml"
+
+# Override defaults for research team
+defaults:
+  provider: "deepseek"
+  model: "deepseek-chat"
+
+# Agent configurations (only research-related agents)
+agents:
+  # Research supervisor
+  - name: "research_supervisor"
+    role: "supervisor"
+    prompt_file: "supervisors/research.md"
+    output_schema: "RouterResponse"
+    headers:
+      HTTP-Referer: "https://research-team.com"
+      X-Title: "Research Supervisor"
+    managed_agents:
+      - "web_researcher"
+      - "data_analyst"
+      - "strategy_agent"
+
+  # Web researcher with enhanced tools
+  - name: "web_researcher"
+    role: "worker"
+    prompt_file: "workers/web_researcher.md"
+    headers:
+      HTTP-Referer: "https://web-researcher.com"
+      X-Title: "Web Researcher Agent"
+    tools:
+      - "tavily_search"
+      - "mock_search"
+
+  # Data analyst with analytics focus
+  - name: "data_analyst"
+    role: "worker"
+    prompt_file: "workers/data_analyst.md"
+    headers:
+      HTTP-Referer: "https://data-analyst.com"
+      X-Title: "Data Analyst Agent"
+    tools:
+      - "mock_search"
+
+  # Strategy agent for insights
+  - name: "strategy_agent"
+    role: "worker"
+    prompt_file: "workers/strategy_agent.md"
+    headers:
+      HTTP-Referer: "https://strategy-agent.com"
+      X-Title: "Strategy Agent"
+
+# Tool configurations
+tools:
+  tavily_search:
+    type: "tavily"
+    api_key_env: "TAVILY_API_KEY"
+    max_results: 5
+    search_depth: "advanced"
+
+  mock_search:
+    type: "mock"
+    mock_data_file: "mock_search_results.json"

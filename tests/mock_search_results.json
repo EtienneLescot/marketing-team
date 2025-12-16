@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Test Result 1",
+    "url": "https://example.com/test1",
+    "content": "This is a test search result for unit testing.",
+    "score": 0.95
+  },
+  {
+    "title": "Test Result 2",
+    "url": "https://example.com/test2",
+    "content": "Another test result for mock search tool.",
+    "score": 0.87
+  },
+  {
+    "title": "Test Result 3",
+    "url": "https://example.com/test3",
+    "content": "Third test result with different content.",
+    "score": 0.76
+  }
+]

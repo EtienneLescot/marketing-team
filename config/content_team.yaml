@@ -1,0 +1,68 @@
+# Content Team Configuration
+# Focused on content creation and optimization
+description: "Content creation team for blog posts, SEO optimization, and visual design"
+inherit_from: "agents.yaml"
+
+# Override defaults for content team
+defaults:
+  provider: "openai"
+  model: "gpt-4o-mini"
+
+# Agent configurations
+agents:
+  # Content supervisor
+  - name: "content_supervisor"
+    role: "supervisor"
+    prompt_file: "supervisors/content.md"
+    output_schema: "RouterResponse"
+    headers:
+      HTTP-Referer: "https://content-team.com"
+      X-Title: "Content Team Supervisor"
+    managed_agents:
+      - "content_writer"
+      - "seo_specialist"
+      - "visual_designer"
+      - "community_manager"
+
+  # Content writer with approval requirement
+  - name: "content_writer"
+    role: "worker"
+    prompt_file: "workers/content_writer.md"
+    headers:
+      HTTP-Referer: "https://content-writer.com"
+      X-Title: "Content Writer Agent"
+    require_approval: true
+
+  # SEO specialist with research capabilities
+  - name: "seo_specialist"
+    role: "worker"
+    prompt_file: "workers/seo_specialist.md"
+    headers:
+      HTTP-Referer: "https://seo-specialist.com"
+      X-Title: "SEO Specialist Agent"
+    tools:
+      - "tavily_search"
+
+  # Visual designer
+  - name: "visual_designer"
+    role: "worker"
+    prompt_file: "workers/visual_designer.md"
+    headers:
+      HTTP-Referer: "https://visual-designer.com"
+      X-Title: "Visual Designer Agent"
+
+  # Community manager for social engagement
+  - name: "community_manager"
+    role: "worker"
+    prompt_file: "workers/community_manager.md"
+    headers:
+      HTTP-Referer: "https://community-manager.com"
+      X-Title: "Community Manager Agent"
+
+# Tool configurations
+tools:
+  tavily_search:
+    type: "tavily"
+    api_key_env: "TAVILY_API_KEY"
+    max_results: 3
+    search_depth: "basic"

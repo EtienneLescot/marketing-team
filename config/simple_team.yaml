@@ -1,0 +1,48 @@
+# Simple Team Configuration
+# Minimal configuration for testing basic functionality
+description: "Minimal team with supervisor and two workers for testing"
+inherit_from: null  # No inheritance, standalone config
+
+# Defaults
+defaults:
+  provider: "deepseek"
+  model: "deepseek-chat"
+
+# Agent configurations
+agents:
+  # Simple supervisor
+  - name: "simple_supervisor"
+    role: "supervisor"
+    prompt_file: "supervisors/main.md"
+    output_schema: "RouterResponse"
+    headers:
+      HTTP-Referer: "https://simple-team.com"
+      X-Title: "Simple Supervisor"
+    managed_agents:
+      - "worker_a"
+      - "worker_b"
+
+  # Worker A
+  - name: "worker_a"
+    role: "worker"
+    prompt_file: "workers/web_researcher.md"
+    headers:
+      HTTP-Referer: "https://worker-a.com"
+      X-Title: "Worker A"
+    tools:
+      - "mock_search"
+
+  # Worker B
+  - name: "worker_b"
+    role: "worker"
+    prompt_file: "workers/content_writer.md"
+    headers:
+      HTTP-Referer: "https://worker-b.com"
+      X-Title: "Worker B"
+    require_approval: true
+
+# Tool configurations
+tools:
+  mock_search:
+    type: "mock"
+    mock_data_file: "mock_search_results.json"

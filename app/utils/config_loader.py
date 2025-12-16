@@ -40,10 +40,63 @@ class ConfigurationLoader:
         self.raw_config = self._load_yaml()
 
     def _load_yaml(self) -> Dict[str, Any]:
+        """Load YAML configuration with inheritance support"""
         if not self.config_path.exists():
             raise FileNotFoundError(f"Config file not found: {self.config_path}")
+        
         with open(self.config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+        
+        # Check for inheritance
+        if config and 'inherit_from' in config and config['inherit_from'] is not None:
+            inherit_from = config['inherit_from']
+            parent_path = Path(inherit_from)
+            if not parent_path.is_absolute():
+                # Resolve relative to current config file
+                parent_path = self.config_path.parent / parent_path
+            
+            # Load parent config
+            parent_loader = ConfigurationLoader(str(parent_path))
+            parent_config = parent_loader.raw_config
+            
+            # Merge: parent config as base, child config overrides
+            config = self._merge_configs(parent_config, config)
+        
+        return config
+    
+    def _merge_configs(self, parent: Dict[str, Any], child: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge two configurations with child overriding parent"""
+        merged = parent.copy()
+        
+        # Merge defaults
+        if 'defaults' in child:
+            merged['defaults'] = {**merged.get('defaults', {}), **child['defaults']}
+        
+        # Merge providers
+        if 'providers' in child:
+            merged['providers'] = {**merged.get('providers', {}), **child['providers']}
+        
+        # Merge agents (more complex - by name)
+        if 'agents' in child:
+            parent_agents = {a['name']: a for a in merged.get('agents', [])}
+            child_agents = {a['name']: a for a in child['agents']}
+            
+            # Update or add agents
+            for name, agent_config in child_agents.items():
+                if name in parent_agents:
+                    # Merge agent configurations (child overrides parent)
+                    parent_agents[name] = {**parent_agents[name], **agent_config}
+                else:
+                    # Add new agent
+                    parent_agents[name] = agent_config
+            
+            merged['agents'] = list(parent_agents.values())
+        
+        # Remove inherit_from from merged config
+        if 'inherit_from' in merged:
+            del merged['inherit_from']
+        
+        return merged
 
     def _load_prompt(self, filename: str) -> str:
         """Lit un fichier markdown et retourne le texte"""
@@ -96,6 +149,7 @@ class ConfigurationLoader:
 
             config = AgentConfig(
                 name=name,
+                role=agent_def.get('role', 'worker'),
                 model_name=resolve_model('deepseek-chat'),
                 api_key_env_var=resolve_val('api_key_env', 'DEEPSEEK_API_KEY'),
                 base_url=resolve_val('base_url', 'https://api.deepseek.com'),

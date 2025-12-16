@@ -1,28 +1,35 @@
-# Marketing Agents - Hierarchical Agent System
+# Marketing Agents - Dynamic Configuration-Driven Agent System
 
-A production-ready hierarchical agent system for marketing automation, built with LangGraph and following best practices from the LangGraph hierarchical agent teams tutorial.
+A production-ready hierarchical agent system for marketing automation with dynamic, configuration-driven graph building. Built with LangGraph and featuring a flexible YAML-based configuration system.
 
 ## Features
 
-- **Hierarchical Supervision**: Multi-level agent teams (main supervisor → team supervisors → specialists)
-- **LLM-Based Routing**: Intelligent task delegation with structured JSON validation
-- **Real Tool Integration**: Tavily search API with caching and error handling
-- **Comprehensive Monitoring**: Event tracking, performance metrics, and agent statistics
-- **Production-Ready**: Error handling, fallback mechanisms, and graceful degradation
+- **Dynamic Configuration**: YAML-based agent configuration as single source of truth
+- **Configuration Inheritance**: Hierarchical configuration with inheritance and overrides
+- **Flexible Entry Points**: Start workflows from any agent (supervisor or worker)
+- **Automatic Graph Building**: Recursive graph construction based on agent hierarchies
+- **Cycle Detection**: Automatic validation to prevent infinite loops
+- **Tool Integration**: Configurable tools per agent with environment variable support
+- **Comprehensive Monitoring**: Real-time event tracking and performance metrics
+- **Production-Ready**: Error handling, validation, and graceful degradation
 
 ## Architecture
 
+The system dynamically builds agent graphs based on YAML configuration:
+
 ```
-Main Supervisor
-├── Research Team
+Main Supervisor (config/agents.yaml)
+├── Research Team Supervisor
 │   ├── Web Researcher (Tavily search)
 │   └── Data Analyst
-├── Content Team
+├── Content Team Supervisor
 │   ├── Content Writer
-│   └── SEO Specialist
-└── Social Media Team
+│   ├── SEO Specialist
+│   └── Visual Designer
+└── Social Media Team Supervisor
     ├── LinkedIn Manager
-    └── Twitter Manager
+    ├── Twitter Manager
+    └── Analytics Tracker
 ```
 
 ## Quick Start
@@ -39,45 +46,77 @@ uv sync
 Create a `.env` file in the project root:
 
 ```bash
-# API Keys
-OPENROUTER_API_KEY=your_openrouter_key_here
-TAVILY_API_KEY=your_tavily_key_here
+# LLM API Keys
 DEEPSEEK_API_KEY=your_deepseek_key_here
-MISTRAL_API_KEY=your_mistral_key_here
+OPENAI_API_KEY=your_openai_key_here  # Optional
+
+# Tool API Keys
+TAVILY_API_KEY=your_tavily_key_here
+LINKEDIN_API_KEY=your_linkedin_key_here  # Optional
 
 # Optional: Enable debug mode
 DEBUG=true
 ```
 
-**Important**: The `.env` file is automatically loaded when any module from the `app` package is imported. You don't need to set environment variables manually in commands.
+**Important**: The `.env` file is automatically loaded when any module from the `app` package is imported.
 
-### 3. Running Tests
+### 3. Running the System
+
+#### Basic Usage
 
 ```bash
-# No need to set TAVILY_API_KEY manually - it's loaded from .env
-uv run python test_new_implementation.py
-```
-
-### 4. Running the System
-
-#### Command Line Interface
-```bash
-# Run a single task
+# Run with default configuration (main_supervisor entry point)
 uv run python main.py "Research AI marketing trends"
 
-# Interactive mode
+# Run with specific configuration
+uv run python main.py --config research_team "Research competitors"
+
+# Run with specific entry point
+uv run python main.py --entry-point content_team_supervisor "Write blog post about AI"
+
+# Run single agent
+uv run python main.py --entry-point web_researcher "Find latest trends"
+```
+
+#### Interactive Mode
+
+```bash
+# Interactive mode with default config
 uv run python main.py --interactive
 
-# Help
+# Interactive mode with custom config
+uv run python main.py --interactive --config research_team
+```
+
+#### Configuration Management
+
+```bash
+# List available configurations
+uv run python main.py --list-configs
+
+# List entry points for a configuration
+uv run python main.py --list-entry-points --config research_team
+
+# Validate configuration
+uv run python main.py --validate --config config/agents.yaml
+
+# Show help
 uv run python main.py --help
 ```
 
 #### Programmatic Usage
+
 ```python
-from app.agents.hierarchical_marketing import create_marketing_workflow
+from app.agents.dynamic_graph_builder import DynamicGraphBuilder
 from langchain_core.messages import HumanMessage
 
-workflow = create_marketing_workflow()
+# Create builder with configuration
+builder = DynamicGraphBuilder("config/agents.yaml")
+
+# Build graph with entry point
+workflow = builder.build_graph(entry_point="main_supervisor")
+
+# Execute workflow
 result = await workflow.ainvoke({
     "messages": [HumanMessage(content="Research AI marketing trends")],
     "iteration_count": 0,
@@ -85,125 +124,247 @@ result = await workflow.ainvoke({
 })
 ```
 
+## Configuration System
+
+### Configuration Files
+
+The system uses YAML configuration files in the `config/` directory:
+
+- `config/agents.yaml` - Main configuration with full agent hierarchy
+- `config/research_team.yaml` - Research-focused team configuration
+- `config/content_team.yaml` - Content creation team configuration
+- `config/simple_team.yaml` - Minimal configuration for testing
+- `config/inheritance_test.yaml` - Example of configuration inheritance
+- `config/cycle_test.yaml` - Example with cycles for testing validation
+
+### Configuration Structure
+
+```yaml
+# config/agents.yaml example
+defaults:
+  provider: "deepseek"
+  model: "deepseek-chat"
+
+providers:
+  deepseek:
+    base_url: "https://api.deepseek.com"
+    api_key_env: "DEEPSEEK_API_KEY"
+
+agents:
+  - name: "main_supervisor"
+    role: "supervisor"
+    prompt_file: "supervisors/main.md"
+    output_schema: "RouterResponse"
+    managed_agents:
+      - "research_team_supervisor"
+      - "content_team_supervisor"
+
+  - name: "web_researcher"
+    role: "worker"
+    prompt_file: "workers/web_researcher.md"
+    tools:
+      - "tavily_search"
+
+tools:
+  tavily_search:
+    type: "tavily"
+    api_key_env: "TAVILY_API_KEY"
+    max_results: 5
+```
+
+### Configuration Inheritance
+
+Configurations can inherit from other YAML files:
+
+```yaml
+# config/research_team.yaml
+description: "Research-focused team"
+inherit_from: "agents.yaml"
+
+# Override defaults
+defaults:
+  provider: "deepseek"
+  model: "deepseek-chat"
+
+# Add or override agents
+agents:
+  - name: "research_supervisor"
+    role: "supervisor"
+    managed_agents:
+      - "web_researcher"
+      - "data_analyst"
+```
+
 ## Environment Variables
-
-The system automatically loads environment variables from `.env` file through:
-
-1. `app/__init__.py` - Loads `.env` when any app module is imported
-2. `agent_config.py` - Also loads `.env` for backward compatibility
-
-### Available Environment Variables
 
 | Variable | Purpose | Required |
 |----------|---------|----------|
-| `OPENROUTER_API_KEY` | LLM API access | Yes |
-| `TAVILY_API_KEY` | Web search API | Yes |
-| `DEEPSEEK_API_KEY` | Alternative LLM | No |
-| `MISTRAL_API_KEY` | Alternative LLM | No |
+| `DEEPSEEK_API_KEY` | DeepSeek LLM API access | Yes |
+| `OPENAI_API_KEY` | OpenAI LLM API access | No |
+| `TAVILY_API_KEY` | Tavily web search API | Yes |
+| `LINKEDIN_API_KEY` | LinkedIn posting API | No |
 | `DEBUG` | Enable debug output | No |
-
-## Testing
-
-### Running All Tests
-
-```bash
-# All tests automatically use .env file
-uv run python test_new_implementation.py
-uv run python test_monitoring.py
-uv run python debug_tavily_error.py
-```
-
-### Test Coverage
-
-- ✅ Research tasks with real web search
-- ✅ Content creation tasks
-- ✅ Mixed research+content workflows
-- ✅ Error handling and fallbacks
-- ✅ Monitoring and metrics collection
 
 ## Project Structure
 
 ```
 .
 ├── app/
-│   ├── __init__.py           # Loads .env file automatically
 │   ├── agents/
-│   │   └── hierarchical_marketing.py  # Main agent implementation
+│   │   ├── dynamic_graph_builder.py  # Dynamic graph construction
+│   │   └── graph_builder.py          # Legacy graph builder
 │   ├── models/
-│   │   └── state_models.py   # Pydantic state models
+│   │   ├── agent_types.py            # Agent type definitions
+│   │   ├── schemas.py                # Pydantic schemas
+│   │   └── state_models.py           # State models
 │   ├── routing/
-│   │   └── structured_router.py  # LLM-based routing
+│   │   └── structured_router.py      # LLM-based routing
 │   ├── tools/
-│   │   ├── tool_registry.py  # Tool management
-│   │   └── tavily_search.py  # Tavily API integration
+│   │   ├── tool_registry.py          # Tool management
+│   │   ├── tavily_search.py          # Tavily API integration
+│   │   ├── linkedin.py               # LinkedIn integration
+│   │   └── mock_search.py            # Mock search for testing
 │   ├── monitoring/
-│   │   └── basic_monitor.py  # Monitoring system
+│   │   ├── basic_monitor.py          # Basic monitoring
+│   │   └── streaming_monitor.py      # Real-time streaming monitor
 │   └── utils/
-│       └── message_utils.py  # Message processing utilities
-├── tests/                    # Test suite
-├── .env                     # Environment variables (gitignored)
-├── pyproject.toml          # Dependencies
-├── uv.lock                 # Lock file
-└── README.md               # This file
+│       ├── config_loader.py          # Configuration loading with inheritance
+│       └── message_utils.py          # Message processing utilities
+├── config/
+│   ├── agents.yaml                   # Main configuration
+│   ├── research_team.yaml            # Research team configuration
+│   ├── content_team.yaml             # Content team configuration
+│   ├── simple_team.yaml              # Simple test configuration
+│   ├── inheritance_test.yaml         # Inheritance example
+│   ├── cycle_test.yaml               # Cycle test configuration
+│   └── prompts/                      # Agent prompt files
+│       ├── supervisors/              # Supervisor prompts
+│       └── workers/                  # Worker prompts
+├── tests/                            # Test suite
+├── .env                              # Environment variables
+├── pyproject.toml                    # Dependencies
+├── uv.lock                           # Lock file
+└── README.md                         # This file
 ```
 
 ## Development
 
-### Adding New Tools
-
-1. Create tool in `app/tools/`
-2. Register in `app/tools/tool_registry.py`
-3. Add to appropriate agent in `app/agents/hierarchical_marketing.py`
-
 ### Adding New Agents
 
-1. Define agent configuration in `agent_config.py`
-2. Implement agent node in `app/agents/hierarchical_marketing.py`
-3. Update routing logic in `app/routing/structured_router.py`
+1. **Create agent configuration** in YAML:
+   ```yaml
+   - name: "new_agent"
+     role: "worker"
+     prompt_file: "workers/new_agent.md"
+     tools: ["tool_name"]
+   ```
 
-### Monitoring
+2. **Create prompt file** in `config/prompts/workers/new_agent.md`
 
-The system includes a basic monitoring system that tracks:
-- Agent start/complete events
-- Tool calls and durations
-- Routing decisions
-- Errors and exceptions
+3. **Add to supervisor's** `managed_agents` list
 
-View monitoring summary:
-```python
-from app.monitoring.basic_monitor import get_global_monitor
-monitor = get_global_monitor()
-monitor.print_summary()
+4. **Validate configuration**:
+   ```bash
+   uv run python main.py --validate --config your_config.yaml
+   ```
+
+### Adding New Tools
+
+1. **Create tool implementation** in `app/tools/`
+
+2. **Register tool** in `app/tools/tool_registry.py`
+
+3. **Configure tool** in YAML:
+   ```yaml
+   tools:
+     new_tool:
+       type: "custom"
+       api_key_env: "NEW_TOOL_API_KEY"
+       param: "value"
+   ```
+
+4. **Assign tool to agents** in their configuration
+
+### Creating Custom Configurations
+
+1. **Start from a template**:
+   ```bash
+   cp config/simple_team.yaml config/my_team.yaml
+   ```
+
+2. **Edit the configuration** to define your agent hierarchy
+
+3. **Test the configuration**:
+   ```bash
+   uv run python main.py --validate --config config/my_team.yaml
+   uv run python main.py --config config/my_team.yaml "Test task"
+   ```
+
+## Testing
+
+### Running Tests
+
+```bash
+# Run unit tests
+uv run pytest tests/ -v
+
+# Run specific test file
+uv run pytest tests/test_dynamic_graph_builder.py -v
+
+# Run with coverage
+uv run pytest tests/ --cov=app --cov-report=html
 ```
+
+### Test Coverage
+
+- ✅ Dynamic graph building from configuration
+- ✅ Configuration inheritance and merging
+- ✅ Cycle detection and validation
+- ✅ Entry point targeting
+- ✅ Tool configuration integration
+- ✅ Error handling and validation
 
 ## Production Deployment
 
 ### Requirements
 - Python 3.12+
 - UV package manager
-- API keys for LLM and search services
+- API keys for LLM and tool services
 
 ### Steps
 1. Set up `.env` file with production API keys
-2. Run comprehensive test suite
-3. Deploy with proper error monitoring
-4. Set up alerting for critical errors
+2. Create production configuration in `config/production.yaml`
+3. Run comprehensive test suite
+4. Validate configuration: `uv run python main.py --validate --config config/production.yaml`
+5. Deploy with proper error monitoring
+6. Set up alerting for critical errors
 
 ## Troubleshooting
 
 ### Common Issues
 
-**"TAVILY_API_KEY not set"**
-- Ensure `.env` file exists in project root
-- Check that `TAVILY_API_KEY` is set in `.env`
-- Verify the `.env` file is being loaded (set `DEBUG=true`)
+**"Configuration file not found"**
+- Ensure configuration file exists in `config/` directory
+- Check file path spelling
+- Verify file has `.yaml` extension
 
-**Import errors**
-- Run `uv sync` to install dependencies
-- Check Python version (requires 3.12+)
+**"Cycle detected in agent hierarchy"**
+- Review `managed_agents` references in your YAML
+- Check for circular dependencies between agents
+- Use validation to identify specific cycles
+
+**"Agent not found in configuration"**
+- Verify agent name spelling in entry point parameter
+- Check that agent is defined in the configuration file
+- Ensure configuration file is being loaded correctly
+
+**"Tool not configured"**
+- Add tool configuration to `tools` section of YAML
+- Verify tool name matches exactly
+- Check that tool is registered in `tool_registry.py`
 
 **API errors**
-- Check API key validity
+- Check API key validity in `.env` file
 - Verify rate limits and quotas
 - Enable debug mode for detailed error messages
 
@@ -216,3 +377,4 @@ MIT License - see LICENSE file for details.
 - Based on LangGraph hierarchical agent teams tutorial
 - Uses Tavily for web search
 - Built with LangChain and LangGraph
+- Inspired by modern configuration-driven architectures

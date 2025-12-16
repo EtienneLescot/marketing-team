@@ -7,6 +7,7 @@ from langchain_openai import ChatOpenAI
 class AgentConfig:
     """Configuration for a single agent"""
     name: str
+    role: str = "worker"  # "supervisor" or "worker"
     model_name: str = "deepseek-chat"
     api_key_env_var: str = "DEEPSEEK_API_KEY"
     base_url: str = "https://api.deepseek.com"
