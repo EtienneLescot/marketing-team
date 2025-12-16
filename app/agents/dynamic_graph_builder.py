@@ -397,23 +397,34 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                 # Get worker config
                 worker_config = self.get_agent_config(worker_name)
                 
-                # Extract task - use original user task, not last message
-                from app.utils.message_utils import extract_original_task
+                # Extract task - use current task (supervisor instructions) if available, otherwise original task
+                from app.utils.message_utils import extract_current_task, extract_original_task
+                current_task = extract_current_task(state.get("messages", []))
                 original_task = extract_original_task(state.get("messages", [])) or "No task provided"
-                context = "\n".join([f"{msg.name}: {msg.content}" for msg in state.get("messages", []) if hasattr(msg, "name") and msg.name not in ["user", "system"]])
+                
+                # Use current task (supervisor instructions) if available, otherwise original task
+                task_to_execute = current_task or original_task
+                
+                # Get context from messages (excluding system and user messages for brevity)
+                context_messages = []
+                for msg in state.get("messages", []):
+                    if hasattr(msg, "name") and msg.name not in ["user", "system"]:
+                        context_messages.append(f"{msg.name}: {msg.content}")
+                
+                context = "\n".join(context_messages[-3:])  # Last 3 agent messages for context
                 
                 # Get LLM model
                 llm = worker_config.get_model()
                 
-                # Create prompt
+                # Create prompt with specific task instructions
                 prompt = f"""{worker_config.system_prompt}
 
-Task: {original_task}
+Task to execute: {task_to_execute}
 
-Context:
-{context}
+Context from previous work:
+{context if context else "No previous context available."}
 
-Please complete the task."""
+Please complete the specific task above."""
                 
                 # Record prompt
                 monitor = get_global_monitor()
@@ -432,17 +443,17 @@ Please complete the task."""
                 
                 # Handle tools if worker has them
                 if worker_config.tools:
-                    result = await self._handle_worker_tools(worker_name, worker_config, result, original_task)
+                    result = await self._handle_worker_tools(worker_name, worker_config, result, task_to_execute)
                 
                 # Record output
                 monitor.record_agent_output(worker_name, result)
                 
-                # Create response
+                # Create response - include the task that was executed
                 response_messages = create_agent_response(
                     content=result,
                     agent_name=worker_name,
                     include_original_task=True,
-                    original_task=original_task
+                    original_task=task_to_execute
                 )
                 
                 # Determine which supervisor to return to
@@ -455,7 +466,8 @@ Please complete the task."""
                         "messages": response_messages,
                         "task_completed": True,
                         "agent_executed": worker_name,
-                        "last_worker": worker_name
+                        "last_worker": worker_name,
+                        "task_executed": task_to_execute
                     }
                 )
                 
@@ -480,14 +492,14 @@ Please complete the task."""
         self._node_cache[cache_key] = worker_node
         return worker_node
     
-    async def _handle_worker_tools(self, worker_name: str, worker_config, result: str, original_task: str) -> str:
+    async def _handle_worker_tools(self, worker_name: str, worker_config, result: str, task_to_execute: str) -> str:
         """Handle tool execution for workers"""
         # For LinkedIn posting
         if worker_name == "linkedin_manager" and worker_config.tools:
             # Check if linkedin_post tool is in the tools list
             linkedin_tools = [tool for tool in worker_config.tools if hasattr(tool, 'metadata') and tool.metadata.name == "linkedin_post"]
             if linkedin_tools:
-                # Extract content to publish
+                # Extract content to publish (use the result from LLM)
                 content_to_publish = result
                 
                 # Create approval request
@@ -528,7 +540,8 @@ Please complete the task."""
                 tool = self.tool_registry.get_tool("tavily_search")
                 if tool:
                     try:
-                        search_result = await tool.execute(original_task)
+                        # Use the specific task to execute (not original task)
+                        search_result = await tool.execute(task_to_execute)
                         result = f"{result}\n\nSearch Results:\n{search_result}"
                     except Exception as e:
                         result = f"{result}\n\n❌ Search failed: {e}"

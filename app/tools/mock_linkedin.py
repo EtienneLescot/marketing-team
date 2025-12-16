@@ -15,7 +15,7 @@ class MockLinkedInPostTool(BaseTool):
     
     def __init__(self):
         metadata = ToolMetadata(
-            name="mock_linkedin_post",
+            name="linkedin_post",  # Changed from "mock_linkedin_post" to match config
             description="Post content to LinkedIn (mock version for testing). Simulates the posting process without actual API calls.",
             category="social_media",
             cost_per_call=0.0,

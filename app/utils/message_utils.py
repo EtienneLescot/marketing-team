@@ -39,6 +39,39 @@ def extract_original_task(
     return None
 
 
+def extract_current_task(
+    messages: List[BaseMessage],
+    clean_text: bool = True
+) -> Optional[str]:
+    """
+    Extract the current task from message history (most recent human message).
+    This is useful for getting supervisor instructions rather than original task.
+    
+    Args:
+        messages: List of messages in the conversation
+        clean_text: Whether to clean the text (extract repo info, remove URLs)
+        
+    Returns:
+        The current task text, or None if not found
+    """
+    # Look for the most recent human message (current task/instructions)
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            task_text = message.content
+            if clean_text:
+                return clean_task_text(task_text)
+            return task_text
+    
+    # If no human message found, check the last message
+    if messages:
+        task_text = messages[-1].content
+        if clean_text:
+            return clean_task_text(task_text)
+        return task_text
+    
+    return None
+
+
 def extract_last_agent_output(messages: List[BaseMessage]) -> Optional[str]:
     """
     Extract the last agent output from message history.
