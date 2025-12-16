@@ -32,7 +32,6 @@ agents:
       X-Title: "Web Researcher Agent"
     tools:
       - "tavily_search"
-      - "mock_search"
 
   # Data analyst with analytics focus
   - name: "data_analyst"
@@ -41,8 +40,6 @@ agents:
     headers:
       HTTP-Referer: "https://data-analyst.com"
       X-Title: "Data Analyst Agent"
-    tools:
-      - "mock_search"
 
   # Strategy agent for insights
   - name: "strategy_agent"
@@ -59,7 +56,3 @@ tools:
     api_key_env: "TAVILY_API_KEY"
     max_results: 5
     search_depth: "advanced"
-
-  mock_search:
-    type: "mock"
-    mock_data_file: "mock_search_results.json"

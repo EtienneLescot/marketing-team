@@ -205,22 +205,22 @@ class DynamicGraphBuilder:
         # Create supervisor node
         supervisor_config = self.get_agent_config(supervisor_name)
         supervisor_node = self._create_supervisor_node(
-            supervisor_name, 
+            supervisor_name,
             supervisor_config.managed_agents
         )
         builder.add_node(supervisor_name, supervisor_node)
         
-        # Add worker nodes
+        # Add worker nodes with supervisor context
         for worker_name in supervisor_config.managed_agents:
-            worker_node = self._create_worker_node(worker_name)
+            worker_node = self._create_worker_node(worker_name, supervisor_name)
             builder.add_node(worker_name, worker_node)
-            
-            # Add edges: supervisor <-> worker
-            builder.add_edge(supervisor_name, worker_name)
-            builder.add_edge(worker_name, supervisor_name)
         
         # Start with supervisor
         builder.add_edge(START, supervisor_name)
+        
+        # Add conditional routing based on supervisor's Command
+        # The supervisor node returns Command(goto=worker_name) or Command(goto=END)
+        # LangGraph will handle the routing automatically
         
         return builder.compile(checkpointer=checkpointer)
     
@@ -377,11 +377,12 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
         self._node_cache[supervisor_name] = supervisor_node
         return supervisor_node
     
-    def _create_worker_node(self, worker_name: str):
-        """Create worker node function"""
-        # Check cache first
-        if worker_name in self._node_cache:
-            return self._node_cache[worker_name]
+    def _create_worker_node(self, worker_name: str, supervisor_name: Optional[str] = None):
+        """Create worker node function with supervisor tracking"""
+        # Check cache first (with supervisor context)
+        cache_key = f"{worker_name}:{supervisor_name}" if supervisor_name else worker_name
+        if cache_key in self._node_cache:
+            return self._node_cache[cache_key]
         
         @monitor_agent_call(worker_name)
         async def worker_node(state: TeamState) -> Command:
@@ -431,31 +432,35 @@ Please complete the task."""
                 )
                 
                 # Determine which supervisor to return to
-                # For now, return to calling supervisor (simplified)
-                # In a more complete implementation, we would track the parent
+                # Use the supervisor_name parameter if provided, otherwise try to get from state
+                target_supervisor = supervisor_name or state.get("current_supervisor", "supervisor")
+                
                 return Command(
-                    goto="supervisor",  # This should be dynamic based on parent
+                    goto=target_supervisor,
                     update={
                         "messages": response_messages,
                         "task_completed": True,
-                        "agent_executed": worker_name
+                        "agent_executed": worker_name,
+                        "last_worker": worker_name
                     }
                 )
                 
             except Exception as e:
                 print(f"{worker_name} failed: {e}")
                 error_response = f"{worker_name} failed: {str(e)[:200]}"
+                target_supervisor = supervisor_name or state.get("current_supervisor", "supervisor")
                 return Command(
-                    goto="supervisor",
+                    goto=target_supervisor,
                     update={
                         "messages": [AIMessage(content=error_response, name=worker_name)],
                         "task_completed": False,
-                        "error": str(e)
+                        "error": str(e),
+                        "last_worker": worker_name
                     }
                 )
         
         # Cache and return
-        self._node_cache[worker_name] = worker_node
+        self._node_cache[cache_key] = worker_node
         return worker_node
     
     async def _handle_worker_tools(self, worker_name: str, worker_config, result: str, original_task: str) -> str:

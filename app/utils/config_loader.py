@@ -7,14 +7,23 @@ from app.models.schemas import RouterResponse
 from app.tools.tool_registry import ToolRegistry
 from app.tools.tavily_search import create_tavily_search_tool
 from app.tools.linkedin import create_linkedin_tool
+from app.tools.mock_search import create_mock_search_tool
 
 # Initialize global tool registry
 GLOBAL_TOOL_REGISTRY = ToolRegistry()
-# Register known tools
-tavily_tool = create_tavily_search_tool()
-GLOBAL_TOOL_REGISTRY.register_tool(tavily_tool)
-linkedin_tool = create_linkedin_tool()
-GLOBAL_TOOL_REGISTRY.register_tool(linkedin_tool)
+
+def _initialize_tool_registry():
+    """Initialize the global tool registry with default tools"""
+    # Register default tools
+    tavily_tool = create_tavily_search_tool()
+    GLOBAL_TOOL_REGISTRY.register_tool(tavily_tool)
+    linkedin_tool = create_linkedin_tool()
+    GLOBAL_TOOL_REGISTRY.register_tool(linkedin_tool)
+    mock_tool = create_mock_search_tool()
+    GLOBAL_TOOL_REGISTRY.register_tool(mock_tool)
+
+# Initialize on import
+_initialize_tool_registry()
 
 # Define output schemas registry
 SCHEMAS = {
