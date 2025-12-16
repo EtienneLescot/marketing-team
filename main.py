@@ -10,7 +10,7 @@ import asyncio
 import sys
 from datetime import datetime
 from langchain_core.messages import HumanMessage, AIMessage
-from app.agents.hierarchical_marketing import create_marketing_workflow
+from app.agents.graph_builder import create_config_driven_workflow
 from app.monitoring.streaming_monitor import get_global_streaming_monitor
 
 # Rich imports
@@ -124,7 +124,7 @@ async def run_marketing_task(task_description: str):
     memory = MemorySaver()
     
     # Create workflow with checkpointer
-    workflow = create_marketing_workflow(checkpointer=memory)
+    workflow = create_config_driven_workflow(checkpointer=memory)
     
     # Thread config for persistence
     thread_config = {"configurable": {"thread_id": "1"}}

@@ -13,12 +13,12 @@ from app.tools.tool_registry import BaseTool, ToolMetadata
 from app.models.state_models import APIError
 
 class LinkedInPostTool(BaseTool):
-    """Tool for posting content to LinkedIn"""
+    """Tool for posting content to LinkedIn personal profile or company page"""
     
     def __init__(self):
         metadata = ToolMetadata(
             name="linkedin_post",
-            description="Post content to LinkedIn personal profile or page",
+            description="Post content to LinkedIn personal profile or company page",
             category="social_media",
             cost_per_call=0.0,
             rate_limit=10, # Conservative limit
@@ -28,17 +28,42 @@ class LinkedInPostTool(BaseTool):
         super().__init__(metadata)
         self.access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
         self.user_urn = os.getenv("LINKEDIN_USER_URN")
+        self.company_urn = os.getenv("LINKEDIN_COMPANY_URN")
     
     async def execute(self, content: str, **kwargs) -> str:
         """Execute the LinkedIn post"""
         self.call_count += 1
         start_time = datetime.now()
         
+        # Determine posting target (company or personal)
+        target_urn = kwargs.get('company_urn') or self.company_urn
+        is_company_post = bool(target_urn)
+        
         # Validation
-        if not self.access_token or not self.user_urn:
+        if not self.access_token:
             self.error_count += 1
             raise APIError(
-                message="Missing LinkedIn credentials (LINKEDIN_ACCESS_TOKEN or LINKEDIN_USER_URN)",
+                message="Missing LinkedIn credentials (LINKEDIN_ACCESS_TOKEN)",
+                component="LinkedInPostTool",
+                operation="execute",
+                suggested_action="Run scripts/get_linkedin_token.py to generate credentials",
+                retryable=False
+            )
+        
+        if is_company_post and not target_urn:
+            self.error_count += 1
+            raise APIError(
+                message="Missing LinkedIn company URN for company posting",
+                component="LinkedInPostTool",
+                operation="execute",
+                suggested_action="Set LINKEDIN_COMPANY_URN environment variable or provide company_urn parameter",
+                retryable=False
+            )
+        
+        if not is_company_post and not self.user_urn:
+            self.error_count += 1
+            raise APIError(
+                message="Missing LinkedIn user URN for personal posting",
                 component="LinkedInPostTool",
                 operation="execute",
                 suggested_action="Run scripts/get_linkedin_token.py to generate credentials",
@@ -53,8 +78,11 @@ class LinkedInPostTool(BaseTool):
                 "X-Restli-Protocol-Version": "2.0.0"
             }
             
+            # Use company URN if available, otherwise use personal user URN
+            author_urn = target_urn if is_company_post else self.user_urn
+            
             payload = {
-                "author": self.user_urn,
+                "author": author_urn,
                 "lifecycleState": "PUBLISHED",
                 "specificContent": {
                     "com.linkedin.ugc.ShareContent": {
@@ -78,7 +106,8 @@ class LinkedInPostTool(BaseTool):
             if response.status_code in [200, 201]:
                 post_id = response.json().get('id', 'unknown')
                 feed_url = f"https://www.linkedin.com/feed/update/{post_id}"
-                return f"✅ Successfully published to LinkedIn! View post: {feed_url}"
+                post_type = "company page" if is_company_post else "personal profile"
+                return f"✅ Successfully published to LinkedIn {post_type}! View post: {feed_url}"
             else:
                 self.error_count += 1
                 raise APIError(
