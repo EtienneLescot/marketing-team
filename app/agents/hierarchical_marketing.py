@@ -999,7 +999,7 @@ def create_social_media_team(config: AgentConfig) -> StateGraph:
 
     @monitor_agent_call("publisher")
     async def publisher_node(state: TeamState) -> Command[Literal["supervisor"]]:
-        """Publisher Agent with Human-in-the-Loop"""
+        """Publisher Agent - Executes after human approval"""
         monitor = get_global_monitor()
         
         # Get content to publish (from last manager message)
@@ -1012,86 +1012,39 @@ def create_social_media_team(config: AgentConfig) -> StateGraph:
                 platform = "LinkedIn" if msg.name == "linkedin_manager" else "Twitter"
                 break
         
-        # Create approval request
-        approval_request = f"Please review this {platform} post:\n\n{content_to_publish}\n\nType 'approved' to publish or provide feedback."
+        print(f"DEBUG: Publisher executing for {platform}...")
+
+        # NOTE: This node runs AFTER the graph has been resumed from an interrupt.
+        # The interrupt logic is handled by 'interrupt_before=["publisher"]' in compile().
         
-        # INTERRUPT FOR HUMAN APPROVAL
-        monitor.record_event(agent_name="publisher", event_type="waiting_for_approval", data={"content": content_to_publish})
-        print(f"\n[bold yellow]✋ Review Required for {platform} Post:[/bold yellow]")
-        print(f"{content_to_publish}")
-        
-        user_feedback = interrupt(approval_request)
-        
-        if str(user_feedback).lower().strip() == "approved":
-            # Real Publishing Logic
-            import os
-            import requests
-            import json
-            
+        result = ""
+        try:
             if platform == "LinkedIn":
-                access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
-                user_urn = os.getenv("LINKEDIN_USER_URN")
+                # Use the LinkedIn Tool
+                from app.utils.config_loader import GLOBAL_TOOL_REGISTRY
+                tool = GLOBAL_TOOL_REGISTRY.get_tool("linkedin_post")
                 
-                if not access_token or not user_urn:
-                    result = "❌ Failed to publish: Missing LINKEDIN_ACCESS_TOKEN or LINKEDIN_USER_URN in .env"
+                if tool:
+                    # Execute tool
+                    result = await tool.execute(content_to_publish)
                 else:
-                    try:
-                        print("DEBUG: Attempting to publish to LinkedIn API...")
-                        post_url = "https://api.linkedin.com/v2/ugcPosts"
-                        headers = {
-                            "Authorization": f"Bearer {access_token}",
-                            "Content-Type": "application/json",
-                            "X-Restli-Protocol-Version": "2.0.0"
-                        }
-                        
-                        payload = {
-                            "author": user_urn,
-                            "lifecycleState": "PUBLISHED",
-                            "specificContent": {
-                                "com.linkedin.ugc.ShareContent": {
-                                    "shareCommentary": {
-                                        "text": content_to_publish
-                                    },
-                                    "shareMediaCategory": "NONE"
-                                }
-                            },
-                            "visibility": {
-                                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-                            }
-                        }
-                        
-                        response = requests.post(post_url, headers=headers, json=payload)
-                        print(f"DEBUG: LinkedIn API Response: {response.status_code} - {response.text}")
-                        
-                        if response.status_code in [200, 201]:
-                            post_url = f"https://www.linkedin.com/feed/update/{response.json().get('id')}"
-                            result = f"✅ Successfully published to LinkedIn! View post: {post_url}"
-                        else:
-                            result = f"❌ LinkedIn API Error: {response.status_code} - {response.text}"
-                            
-                    except Exception as e:
-                        result = f"❌ Publishing exception: {str(e)}"
+                    result = "❌ Error: LinkedIn tool not found in registry."
             else:
+                # Mock for Twitter
                 result = f"✅ (Mock) Successfully published to {platform}!"
 
-            monitor.record_agent_output("publisher", result)
-            return Command(
-                goto="supervisor", 
-                update={
-                    "messages": [AIMessage(content=result, name="publisher")],
-                    "task_completed": True
-                }
-            )
-        else:
-            result = f"❌ Publication rejected. Feedback: {user_feedback}"
-            monitor.record_agent_output("publisher", result)
-            return Command(
-                goto="supervisor", 
-                update={
-                    "messages": [AIMessage(content=result, name="publisher")],
-                    "task_completed": False
-                }
-            )
+        except Exception as e:
+            result = f"❌ Publishing exception: {str(e)}"
+
+        monitor.record_agent_output("publisher", result)
+        
+        return Command(
+            goto="supervisor", 
+            update={
+                "messages": [AIMessage(content=result, name="publisher")],
+                "task_completed": "✅ Success" in result
+            }
+        )
 
     # Build social media team graph
     builder = StateGraph(TeamState)
@@ -1105,4 +1058,5 @@ def create_social_media_team(config: AgentConfig) -> StateGraph:
     builder.add_edge("twitter_manager", "supervisor")
     builder.add_edge("publisher", "supervisor")
     
-    return builder.compile()
+    # Enable HITL by interrupting before the publisher node runs
+    return builder.compile(interrupt_before=["publisher"])

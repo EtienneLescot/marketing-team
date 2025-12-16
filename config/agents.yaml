@@ -1,0 +1,154 @@
+# Global defaults
+defaults:
+  provider: "deepseek"
+  model: "deepseek-chat"
+
+# Provider definitions
+providers:
+  deepseek:
+    base_url: "https://api.deepseek.com"
+    api_key_env: "DEEPSEEK_API_KEY"
+  openai:
+    base_url: null # Defaults to standard OpenAI URL
+    api_key_env: "OPENAI_API_KEY"
+
+# Agent configurations
+agents:
+  # ============================================================================
+  # Superviseur Principal (Niveau le plus élevé)
+  # ============================================================================
+  - name: "main_supervisor"
+    role: "supervisor"
+    # provider: "deepseek" # Inherits from defaults
+    prompt_file: "supervisors/main.md"
+    output_schema: "RouterResponse"
+    headers:
+      HTTP-Referer: "https://marketing-orchestrator.com"
+      X-Title: "Marketing Main Supervisor"
+    managed_agents:
+      - "research_team_supervisor"
+      - "content_team_supervisor"
+      - "social_media_team_supervisor"
+
+  # ============================================================================
+  # Équipe de Recherche
+  # ============================================================================
+  - name: "research_team_supervisor"
+    role: "supervisor"
+    prompt_file: "supervisors/research.md"
+    output_schema: "RouterResponse"
+    headers:
+      HTTP-Referer: "https://research-team.com"
+      X-Title: "Research Team Supervisor"
+    managed_agents:
+      - "web_researcher"
+      - "data_analyst"
+
+  - name: "web_researcher"
+    role: "worker"
+    prompt_file: "workers/web_researcher.md"
+    headers:
+      HTTP-Referer: "https://web-researcher.com"
+      X-Title: "Web Researcher Agent"
+    tools:
+      - "tavily_search"
+
+  - name: "data_analyst"
+    role: "worker"
+    prompt_file: "workers/data_analyst.md"
+    headers:
+      HTTP-Referer: "https://data-analyst.com"
+      X-Title: "Data Analyst Agent"
+
+  # ============================================================================
+  # Équipe de Création de Contenu
+  # ============================================================================
+  - name: "content_team_supervisor"
+    role: "supervisor"
+    prompt_file: "supervisors/content.md"
+    output_schema: "RouterResponse"
+    headers:
+      HTTP-Referer: "https://content-team.com"
+      X-Title: "Content Team Supervisor"
+    managed_agents:
+      - "content_writer"
+      - "seo_specialist"
+      - "visual_designer"
+
+  - name: "content_writer"
+    role: "worker"
+    prompt_file: "workers/content_writer.md"
+    headers:
+      HTTP-Referer: "https://content-writer.com"
+      X-Title: "Content Writer Agent"
+
+  - name: "seo_specialist"
+    role: "worker"
+    prompt_file: "workers/seo_specialist.md"
+    headers:
+      HTTP-Referer: "https://seo-specialist.com"
+      X-Title: "SEO Specialist Agent"
+
+  - name: "visual_designer"
+    role: "worker"
+    prompt_file: "workers/visual_designer.md"
+    headers:
+      HTTP-Referer: "https://visual-designer.com"
+      X-Title: "Visual Designer Agent"
+
+  # ============================================================================
+  # Équipe des Médias Sociaux
+  # ============================================================================
+  - name: "social_media_team_supervisor"
+    role: "supervisor"
+    prompt_file: "supervisors/social_media.md"
+    output_schema: "RouterResponse"
+    headers:
+      HTTP-Referer: "https://social-media-team.com"
+      X-Title: "Social Media Team Supervisor"
+    managed_agents:
+      - "linkedin_manager"
+      - "twitter_manager"
+      - "analytics_tracker"
+
+  - name: "linkedin_manager"
+    role: "worker"
+    prompt_file: "workers/linkedin_manager.md"
+    headers:
+      HTTP-Referer: "https://linkedin-manager.com"
+      X-Title: "LinkedIn Manager Agent"
+    require_approval: true
+    tools:
+      - "linkedin_post"
+
+  - name: "twitter_manager"
+    role: "worker"
+    prompt_file: "workers/twitter.md"
+    headers:
+      HTTP-Referer: "https://twitter-manager.com"
+      X-Title: "Twitter Manager Agent"
+    require_approval: true
+
+  - name: "analytics_tracker"
+    role: "worker"
+    prompt_file: "workers/analytics_tracker.md"
+    headers:
+      HTTP-Referer: "https://analytics-tracker.com"
+      X-Title: "Analytics Tracker Agent"
+
+  # ============================================================================
+  # Agents de Support (Optionnels)
+  # ============================================================================
+  - name: "strategy_agent"
+    role: "worker"
+    prompt_file: "workers/strategy_agent.md"
+    headers:
+      HTTP-Referer: "https://strategy-agent.com"
+      X-Title: "Strategy Agent"
+
+  - name: "community_manager"
+    role: "worker"
+    prompt_file: "workers/community_manager.md"
+    headers:
+      HTTP-Referer: "https://community-manager.com"
+      X-Title: "Community Manager Agent"
