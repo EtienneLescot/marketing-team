@@ -65,10 +65,24 @@ class OrchestrationState(MessagesState):
     """State for orchestration with dependency resolution"""
     
     def _merge_execution_plans(left: Optional[ExecutionPlan], right: Optional[ExecutionPlan]) -> Optional[ExecutionPlan]:
-        """Merge execution plans - right takes precedence"""
-        if right is not None:
+        """Merge execution plans with smart merging of completed steps"""
+        if not left:
             return right
-        return left
+        if not right:
+            return left
+            
+        # Merge completed_steps (union)
+        all_completed = list(set(left.completed_steps + right.completed_steps))
+        
+        # Use right (newest) plan as base but ensure we keep all completions
+        merged_plan = right.model_copy(deep=True)
+        merged_plan.completed_steps = all_completed
+        
+        # Also ensure agent_results are merged if right didn't have them all
+        merged_results = {**left.agent_results, **right.agent_results}
+        merged_plan.agent_results = merged_results
+        
+        return merged_plan
         
     # Core orchestration
     execution_plan: Annotated[Optional[ExecutionPlan], _merge_execution_plans] = Field(description="Execution plan for current task", default=None)
