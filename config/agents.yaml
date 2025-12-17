@@ -1,12 +1,18 @@
 # Global defaults
 defaults:
-  provider: "deepseek"
-  model: "deepseek-chat"
+  # provider: "deepseek"
+  # model: "deepseek-chat"
+  provider: "groq"
+  model: "llama-3.1-8b-instant"
+
   #provider: "openrouter"
   #model:"amazon/nova-2-lite-v1:free"
 
 # Provider definitions
 providers:
+  groq:
+    base_url: "https://api.groq.com/openai/v1"
+    api_key_env: "GROQ_LLM_API_KEY"
   openrouter:
     base_url: "https://openrouter.ai/api/"
     api_key_env: "OPENROUTER_API_KEY"
