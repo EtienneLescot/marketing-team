@@ -32,10 +32,15 @@ class ExecutionPlan(BaseModel):
         if agent_name not in self.completed_steps:
             self.completed_steps.append(agent_name)
         
-        # Advance to next step if this was the current agent
-        if (self.current_step < len(self.execution_order) and 
-            self.execution_order[self.current_step] == agent_name):
-            self.current_step += 1
+        # Self-healing step advancement: Find the first agent that is NOT complete
+        # This prevents getting stuck if an agent executes out of order
+        for i, agent in enumerate(self.execution_order):
+            if agent not in self.completed_steps:
+                self.current_step = i
+                return
+        
+        # If all agents are complete
+        self.current_step = len(self.execution_order)
     
     def is_complete(self) -> bool:
         """Check if all steps are complete"""
@@ -59,23 +64,62 @@ class ExecutionPlan(BaseModel):
 class OrchestrationState(MessagesState):
     """State for orchestration with dependency resolution"""
     
+    def _merge_execution_plans(left: Optional[ExecutionPlan], right: Optional[ExecutionPlan]) -> Optional[ExecutionPlan]:
+        """Merge execution plans - right takes precedence"""
+        if right is not None:
+            return right
+        return left
+        
     # Core orchestration
-    execution_plan: Optional[ExecutionPlan] = Field(description="Execution plan for current task", default=None)
+    execution_plan: Annotated[Optional[ExecutionPlan], _merge_execution_plans] = Field(description="Execution plan for current task", default=None)
     target_agent: str = Field(description="Target agent to start execution from", default="main_supervisor")
     
     # Task tracking
+    def _merge_status(left: str, right: str) -> str:
+        """Merge task status - right takes precedence"""
+        if right:
+            return right
+        return left
+        
+    def _merge_task(left: str, right: str) -> str:
+        """Merge task - right takes precedence"""
+        if right:
+            return right
+        return left
+        
+    def _merge_dict_field(left: Optional[Dict], right: Optional[Dict]) -> Optional[Dict]:
+        """Merge dictionary field - right takes precedence"""
+        if right is not None:
+            return right
+        return left
+
     original_task: str = Field(description="Original user task")
-    current_task: str = Field(description="Current task being worked on")
-    task_status: str = Field(description="Status of current task", default="pending")
+    current_task: Annotated[str, _merge_task] = Field(description="Current task being worked on")
+    task_status: Annotated[str, _merge_status] = Field(description="Status of current task", default="pending")
+    pending_approval: Annotated[Optional[Dict[str, Any]], _merge_dict_field] = Field(description="Pending approval request", default=None)
     
     # Agent tracking
-    current_agent: Optional[str] = Field(description="Current agent working on the task", default=None)
+    def _merge_current_agent(left: Optional[str], right: Optional[str]) -> Optional[str]:
+        """Merge current agent - right takes precedence"""
+        if right is not None:
+            return right
+        return left
+        
+    current_agent: Annotated[Optional[str], _merge_current_agent] = Field(description="Current agent working on the task", default=None)
     agent_history: Annotated[List[Dict[str, Any]], operator.add] = Field(
         description="History of agent executions", default_factory=list
     )
     
     # Results tracking
-    agent_results: Dict[str, str] = Field(description="Results from each agent", default_factory=dict)
+    def _merge_results(left: Dict[str, str], right: Dict[str, str]) -> Dict[str, str]:
+        """Merge agent results"""
+        if not left:
+            return right
+        if not right:
+            return left
+        return {**left, **right}
+        
+    agent_results: Annotated[Dict[str, str], _merge_results] = Field(description="Results from each agent", default_factory=dict)
     final_result: Optional[str] = Field(description="Final synthesized result", default=None)
     
     # Workflow metadata

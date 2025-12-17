@@ -258,6 +258,39 @@ class OrchestratedGraphBuilder:
         
         return builder.compile(checkpointer=checkpointer)
     
+    def _post_process_plan(self, subtasks: List[Dict], original_task: str) -> List[Dict]:
+        """Refine plan to ensure role alignment using heuristics"""
+        print(f"DEBUG: Post-processing plan with {len(subtasks)} subtasks")
+        for subtask in subtasks:
+            agent = subtask.get("agent", "")
+            instruction = subtask.get("instruction", "")
+            print(f"DEBUG: Checking agent {agent} with instruction: {instruction[:50]}...")
+            
+            # Heuristic 1: Analytics agents should analyze, not create content
+            if "analytics" in agent.lower():
+                if "write" in instruction.lower() or "create" in instruction.lower() or "post" in instruction.lower():
+                     print(f"DEBUG: Correcting Analytics Agent instruction")
+                     subtask["instruction"] = f"Define KPIs, success metrics, and an analysis plan for: {original_task}"
+                 
+            # Heuristic 2: Strategy agents should strategize, not execute basic tasks
+            if "strategy" in agent.lower() and ("write a" in instruction.lower() or "create a" in instruction.lower()):
+                 print(f"DEBUG: Correcting Strategy Agent instruction")
+                 subtask["instruction"] = f"Develop a comprehensive strategic outline for: {original_task}"
+                 
+            # Heuristic 3: Platform mismatch (Twitter vs LinkedIn)
+            if "twitter" in agent.lower() and "linkedin" in instruction.lower():
+                 print(f"DEBUG: Correcting Twitter/LinkedIn mismatch")
+                 subtask["instruction"] = instruction.replace("LinkedIn", "Twitter").replace("linkedin", "twitter")
+                 # Force generic if replacement isn't enough
+                 if "Twitter" not in subtask["instruction"] and "twitter" not in subtask["instruction"]:
+                     subtask["instruction"] = f"Create engaging Twitter content for: {original_task}"
+            
+            if "linkedin" in agent.lower() and "twitter" in instruction.lower():
+                 print(f"DEBUG: Correcting LinkedIn/Twitter mismatch")
+                 subtask["instruction"] = instruction.replace("Twitter", "LinkedIn").replace("twitter", "linkedin")
+                 
+        return subtasks
+
     def _create_task_analysis_node(self, entry_point: str):
         """Create node for task analysis and planning"""
         async def task_analysis_node(state: Dict[str, Any]) -> Command:
@@ -274,13 +307,83 @@ class OrchestratedGraphBuilder:
                     if self._get_agent_type(agent_name) == AgentType.WORKER
                 ]
                 
-                # Create simple execution plan
+                # Generate tailored plan using LLM
+                agent_config = self.get_agent_config(entry_point)
+                llm = agent_config.get_model()
+                
+                # Gather agent info with role descriptions
+                agent_info = []
+                for agent in worker_execution_order:
+                    config = self.get_agent_config(agent)
+                    # Extract first line or summary of system prompt as role description
+                    role_desc = config.system_prompt.split('\n')[0] if config.system_prompt else "No description"
+                    agent_info.append(f"- {agent}: {role_desc}")
+                
+                planning_prompt = f"""You are the orchestration manager.
+                
+                Overall Goal: {original_task}
+                
+                Available Agents and their roles:
+                {chr(10).join(agent_info)}
+                
+                Please generate specific, tailored instructions for EACH agent to contribute to the Overall Goal.
+                
+                CRITICAL RULES:
+                1. IGNORE specific platform constraints in the Overall Goal if they don't match the agent's role.
+                   - Example: If Goal says "Post on LinkedIn", the Twitter Agent MUST "Post on Twitter", NOT LinkedIn.
+                2. Each agent MUST receive a UNIQUE task suited to their specific capabilities. Do NOT copy-paste tasks.
+                3. An analytics agent must receive an ANALYSIS task, never a content creation task.
+                4. A strategy agent must receive a STRATEGY task (planning/review), not execution.
+                
+                Output JSON format:
+                {{
+                    "subtasks": [
+                        {{
+                            "agent": "agent_name",
+                            "role_analysis": "Brief analysis of what this agent should do...",
+                            "instruction": "Specific tailored instruction for this agent..."
+                        }}
+                    ]
+                }}
+                """
+                
+                try:
+                    response = await asyncio.wait_for(
+                        llm.ainvoke([{"role": "user", "content": planning_prompt}]),
+                        timeout=30.0
+                    )
+                    # Robust JSON extraction
+                    content = response.content
+                    try:
+                        # Find first { and last }
+                        start_idx = content.find('{')
+                        end_idx = content.rfind('}')
+                        if start_idx != -1 and end_idx != -1:
+                            json_str = content[start_idx:end_idx+1]
+                            plan_data = json.loads(json_str)
+                        else:
+                            print("DEBUG: No JSON found in LLM response")
+                            plan_data = {}
+                    except json.JSONDecodeError as e:
+                        print(f"DEBUG: JSON decode error: {e}")
+                        plan_data = {}
+                    raw_subtasks = plan_data.get("subtasks", [])
+                    
+                    # Post-process subtasks to correct common LLM errors
+                    refined_subtasks_list = self._post_process_plan(raw_subtasks, original_task)
+                    tailored_subtasks = {item["agent"]: item["instruction"] for item in refined_subtasks_list}
+                    
+                except Exception as e:
+                    print(f"Planning LLM failed: {e}")
+                    tailored_subtasks = {}
+
+                # Create execution plan
                 execution_plan = ExecutionPlan(
                     task_id=f"task_{datetime.now().timestamp()}",
                     original_task=original_task,
                     subtasks=[
                         {
-                            "description": f"Execute {agent}'s part of: {original_task}",
+                            "description": tailored_subtasks.get(agent, f"Execute {agent}'s part of: {original_task}"),
                             "assigned_to": agent,
                             "dependencies": [] if i == 0 else [worker_execution_order[i-1]]
                         }
@@ -315,13 +418,16 @@ class OrchestratedGraphBuilder:
                     except Exception as e:
                         print(f"Failed to record handoff: {e}")
                     
+                    first_subtask = execution_plan.subtasks[0]["description"] if execution_plan.subtasks else original_task
+                    
                     return Command(
                         goto=first_agent,
                         update={
                             "current_agent": first_agent,
                             "task_status": "execution_started",
                             "execution_plan": execution_plan.dict(),
-                            "original_task": original_task
+                            "original_task": original_task,
+                            "current_task": first_subtask
                         }
                     )
                 else:
@@ -378,6 +484,26 @@ class OrchestratedGraphBuilder:
         elif agent_name == "data_analyst":
             tailored_task = f"Analyze data and provide insights related to:\n\n{original_task}"
             
+        # Twitter Manager: Focus on tweets
+        elif agent_name == "twitter_manager":
+            tailored_task = f"Create engaging Twitter content based on this request:\n\n{original_task}"
+            
+        # Analytics Tracker: Focus on metrics and performance
+        elif agent_name == "analytics_tracker":
+            tailored_task = f"Analyze performance metrics and potential reach for:\n\n{original_task}"
+            
+        # Strategy Agent: Focus on overall strategy
+        elif agent_name == "strategy_agent":
+            tailored_task = f"Develop a comprehensive marketing strategy for:\n\n{original_task}"
+            
+        # Visual Designer: Focus on visuals
+        elif agent_name == "visual_designer":
+            tailored_task = f"Create visual concepts and assets for:\n\n{original_task}"
+            
+        # Community Manager: Focus on engagement
+        elif agent_name == "community_manager":
+            tailored_task = f"Plan community engagement and interaction for:\n\n{original_task}"
+            
         # Add context about dependencies if available
         if dependencies:
             context_info = ", ".join(dependencies)
@@ -399,8 +525,8 @@ class OrchestratedGraphBuilder:
                 # Get task from state dict
                 current_task = state.get("current_task") or state.get("original_task") or "No task provided"
                 
-                # Tailor task for this specific agent
-                tailored_task = self._tailor_task_for_agent(current_task, worker_name, worker_config.role)
+                # Use current task (which should be tailored by supervisor/planner)
+                tailored_task = current_task
                 
                 # Get LLM model
                 llm = worker_config.get_model()
@@ -469,7 +595,7 @@ Please complete this specific task."""
                                 "tools": [tool.metadata.name if hasattr(tool, 'metadata') and hasattr(tool.metadata, 'name') else str(tool) for tool in worker_config.tools],
                                 "require_approval": True
                             },
-                            "agent_results": {**state.get("agent_results", {}), worker_name: f"[AWAITING APPROVAL] {result[:100]}..."}
+                            "agent_results": {worker_name: f"[AWAITING APPROVAL] {result[:100]}..."}
                         }
                     )
                 
@@ -490,7 +616,7 @@ Please complete this specific task."""
                     "messages": state.get("messages", []) + [
                         AIMessage(content=result, name=worker_name)
                     ],
-                    "agent_results": {**state.get("agent_results", {}), worker_name: result}
+                    "agent_results": {worker_name: result}
                 }
                 
                 # Get next agent from execution plan if available
@@ -509,6 +635,20 @@ Please complete this specific task."""
                     if next_agent:
                         update_data["execution_plan"] = execution_plan.dict()
                         update_data["current_agent"] = next_agent
+                        
+                        # Update current_task for next agent
+                        task_found = False
+                        for subtask in execution_plan.subtasks:
+                            if subtask["assigned_to"] == next_agent:
+                                update_data["current_task"] = subtask["description"]
+                                task_found = True
+                                break
+                        
+                        if not task_found:
+                            # Failsafe: Generate generic task if tailored one not found
+                            original = state.get("original_task", "the task")
+                            update_data["current_task"] = f"Execute {next_agent}'s part of: {original}"
+                            print(f"Warning: No tailored task found for {next_agent}, using generic fallback.")
                         
                         # Record handoff decision
                         try:
@@ -544,7 +684,7 @@ Please complete this specific task."""
                     "messages": state.get("messages", []) + [
                         AIMessage(content=error_result, name=worker_name)
                     ],
-                    "agent_results": {**state.get("agent_results", {}), worker_name: error_result}
+                    "agent_results": {worker_name: error_result}
                 }
                 
                 # Try to get next agent
@@ -646,12 +786,10 @@ Available agents: {', '.join(managed_agents)}
 
 Current task: {current_task}
 
-Agent-specific task variations:
-{agent_specific_instructions}
-
 Please route to the most appropriate agent or FINISH if complete.
+IMPORTANT: You MUST provide specific, tailored instructions for the selected agent in the 'instructions' field.
 
-Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confidence": 0.95, "should_terminate": false}}"""
+Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confidence": 0.95, "should_terminate": false, "instructions": "Specific task for the agent"}}"""
                 
                 llm = supervisor_config.get_model()
                 
@@ -674,6 +812,7 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                 
                 if decision.get("instructions"):
                     update_data["messages"] = state.get("messages", []) + [HumanMessage(content=decision["instructions"], name="supervisor_instructions")]
+                    update_data["current_task"] = decision["instructions"]
                 
                 if decision.get("should_terminate", False) or decision["next_node"] == "FINISH":
                     update_data["team_status"] = "completed"
@@ -830,7 +969,7 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                             "messages": state.get("messages", []) + [
                                 AIMessage(content=result, name=agent_name)
                             ],
-                            "agent_results": {**state.get("agent_results", {}), agent_name: result},
+                            "agent_results": {agent_name: result},
                             "pending_approval": None  # Clear pending approval
                         }
                         
@@ -871,7 +1010,7 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                         "messages": state.get("messages", []) + [
                             HumanMessage(content=f"HUMAN FEEDBACK: {feedback_data}\n\nPlease revise your work based on this feedback:", name="human_feedback")
                         ],
-                        "agent_results": {**state.get("agent_results", {}), agent_name: f"[FEEDBACK RECEIVED] {feedback_data}"},
+                        "agent_results": {agent_name: f"[FEEDBACK RECEIVED] {feedback_data}"},
                         "pending_approval": None,  # Clear pending approval
                         "human_feedback": feedback_data  # Store feedback for agent
                     }
@@ -901,7 +1040,7 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                         "messages": state.get("messages", []) + [
                             AIMessage(content=rejection_result, name=agent_name)
                         ],
-                        "agent_results": {**state.get("agent_results", {}), agent_name: rejection_result},
+                        "agent_results": {agent_name: rejection_result},
                         "pending_approval": None
                     }
                     
