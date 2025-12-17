@@ -346,6 +346,45 @@ class OrchestratedGraphBuilder:
         
         return task_analysis_node
     
+    def _tailor_task_for_agent(self, original_task: str, agent_name: str, agent_role: str) -> str:
+        """Tailor task for specific agent based on its role and context"""
+        agent_config = self.get_agent_config(agent_name)
+        if not agent_config:
+            return original_task
+            
+        # Get agent's dependencies to understand context
+        dependencies = getattr(agent_config, 'depends_on', [])
+        
+        # Task tailoring logic based on agent role and dependencies
+        tailored_task = original_task
+        
+        # SEO Specialist: Focus on optimization and visibility
+        if agent_name == "seo_specialist":
+            tailored_task = f"Optimize the following content for SEO to maximize search engine visibility and engagement:\n\n{original_task}"
+            
+        # LinkedIn Manager: Focus on professional posting
+        elif agent_name == "linkedin_manager":
+            tailored_task = f"Create a professional and engaging LinkedIn post based on this content:\n\n{original_task}"
+            
+        # Content Writer: Focus on content creation
+        elif agent_name == "content_writer":
+            tailored_task = f"Write compelling content based on this request:\n\n{original_task}"
+            
+        # Web Researcher: Focus on information gathering
+        elif agent_name == "web_researcher":
+            tailored_task = f"Research and gather information related to:\n\n{original_task}"
+            
+        # Data Analyst: Focus on analysis
+        elif agent_name == "data_analyst":
+            tailored_task = f"Analyze data and provide insights related to:\n\n{original_task}"
+            
+        # Add context about dependencies if available
+        if dependencies:
+            context_info = ", ".join(dependencies)
+            tailored_task += f"\n\nContext: This task depends on output from: {context_info}"
+            
+        return tailored_task
+
     def _create_worker_node(self, worker_name: str, supervisor_name: Optional[str] = None):
         """Create worker node function"""
         cache_key = f"{worker_name}:{supervisor_name}" if supervisor_name else worker_name
@@ -360,13 +399,23 @@ class OrchestratedGraphBuilder:
                 # Get task from state dict
                 current_task = state.get("current_task") or state.get("original_task") or "No task provided"
                 
+                # Tailor task for this specific agent
+                tailored_task = self._tailor_task_for_agent(current_task, worker_name, worker_config.role)
+                
                 # Get LLM model
                 llm = worker_config.get_model()
-                
-                # Create prompt
+                 
+                # Check for human feedback and incorporate it
+                human_feedback = state.get("human_feedback")
+                feedback_section = ""
+                if human_feedback:
+                    feedback_section = f"\n\n📝 HUMAN FEEDBACK RECEIVED:\n{human_feedback}\n\nPlease revise your work based on this feedback."
+                 
+                # Create prompt with tailored task and feedback
                 prompt = f"""{worker_config.system_prompt}
 
-Task to execute: {current_task}
+Task to execute: {tailored_task}
+{feedback_section}
 
 Please complete this specific task."""
                 
@@ -577,16 +626,28 @@ Please complete this specific task."""
         return result
     
     def _create_supervisor_node(self, supervisor_name: str, managed_agents: List[str]):
-        """Create supervisor node function with dynamic routing"""
+        """Create supervisor node function with dynamic routing and task tailoring"""
         async def supervisor_node(state: Dict[str, Any]) -> Command:
             try:
                 supervisor_config = self.get_agent_config(supervisor_name)
+                
+                # Get current task
+                current_task = state.get('messages', [])[-1].content if state.get('messages') else state.get('original_task', 'No task provided')
+                
+                # Provide tailored instructions for each managed agent
+                agent_specific_instructions = "\n".join([
+                    f"- {agent}: {self._tailor_task_for_agent(current_task, agent, 'worker')}"
+                    for agent in managed_agents
+                ])
                 
                 routing_prompt = f"""{supervisor_config.system_prompt}
 
 Available agents: {', '.join(managed_agents)}
 
-Current task: {state.get('messages', [])[-1].content if state.get('messages') else 'No task provided'}
+Current task: {current_task}
+
+Agent-specific task variations:
+{agent_specific_instructions}
 
 Please route to the most appropriate agent or FINISH if complete.
 
@@ -634,11 +695,16 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
         """Create node for human-in-the-loop approval"""
         async def human_approval_node(state: Dict[str, Any]) -> Command:
             """Handle human approval for agent actions"""
+            print("DEBUG: human_approval_node called!")
+            print(f"DEBUG: state keys: {list(state.keys())}")
+            print(f"DEBUG: pending_approval: {state.get('pending_approval')}")
+            
             try:
                 pending_approval = state.get("pending_approval")
                 if not pending_approval:
-                    # No pending approval, continue to result synthesis
-                    return Command(goto="result_synthesis", update={})
+                    print("DEBUG: No pending_approval, returning to END")
+                    # No pending approval, continue to END
+                    return Command(goto=END, update={})
                 
                 agent_name = pending_approval.get("agent")
                 content = pending_approval.get("content", "")
@@ -661,24 +727,84 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                 except Exception as e:
                     print(f"Failed to record approval request: {e}")
                 
-                # In a real implementation, this would wait for user input
-                # For now, we'll simulate approval after a short delay
-                print(f"\n🔔 HUMAN APPROVAL REQUIRED for {agent_name}")
+                # Display approval request to user
+                print("\n" + "="*80)
+                print("🔔 HUMAN APPROVAL REQUIRED")
+                print("="*80)
+                print(f"Agent: {agent_name}")
                 print(f"Tools to execute: {tools}")
-                print(f"Content preview: {content[:200]}...")
-                print("\nOptions:")
-                print("1. Approve - Execute the tools")
-                print("2. Reject - Skip tool execution")
-                print("3. Modify - Edit content before approval")
-                print("\nSimulating approval after 2 seconds...")
+                print(f"\nContent to publish:")
+                print("-"*40)
+                print(content[:500] + ("..." if len(content) > 500 else ""))
+                print("-"*40)
                 
-                # Simulate waiting for human input
-                await asyncio.sleep(2)
-                
-                # For demo purposes, we'll auto-approve
-                decision = "approve"  # In real implementation, this would come from user input
+                # Get user decision
+                while True:
+                    print("\nOptions:")
+                    print("1. Approve - Execute the tools")
+                    print("2. Reject - Skip tool execution")
+                    print("3. View full content")
+                    print("4. Provide feedback - Give guidance to improve the content")
+                    print("\nEnter your choice (1/2/3/4): ", end="", flush=True)
+                     
+                    # Use asyncio to run input in executor since input() is blocking
+                    import sys
+                    if sys.version_info >= (3, 8):
+                        import asyncio
+                        loop = asyncio.get_event_loop()
+                        choice = await loop.run_in_executor(None, input)
+                    else:
+                        # Fallback for older Python versions
+                        choice = input()
+                     
+                    choice = choice.strip()
+                     
+                    if choice == "1":
+                        decision = "approve"
+                        break
+                    elif choice == "2":
+                        decision = "reject"
+                        break
+                    elif choice == "3":
+                        print("\n" + "="*80)
+                        print("FULL CONTENT:")
+                        print("="*80)
+                        print(content)
+                        print("="*80)
+                        continue
+                    elif choice == "4":
+                        print("\n" + "="*80)
+                        print("📝 PROVIDE FEEDBACK")
+                        print("="*80)
+                        print("Enter your feedback to guide the agent (e.g., 'Make it more technical', 'Add examples', etc.):")
+                        print("Type 'cancel' to go back to the main menu.")
+                        
+                        # Get feedback input
+                        if sys.version_info >= (3, 8):
+                            feedback = await loop.run_in_executor(None, input)
+                        else:
+                            feedback = input()
+                        
+                        feedback = feedback.strip()
+                        
+                        if feedback.lower() == 'cancel':
+                            continue
+                        
+                        if feedback:
+                            # Store feedback and return to agent for revision
+                            decision = "feedback"
+                            feedback_data = feedback
+                            break
+                        else:
+                            print("Feedback cannot be empty. Please try again.")
+                            continue
+                    else:
+                        print("Invalid choice. Please enter 1, 2, 3, or 4.")
+                        continue
                 
                 if decision == "approve":
+                    print(f"\n✅ APPROVED: Tools will be executed for {agent_name}")
+                    
                     # Get agent config and execute tools
                     worker_config = self.get_agent_config(agent_name)
                     if worker_config and worker_config.tools:
@@ -708,7 +834,7 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                             "pending_approval": None  # Clear pending approval
                         }
                         
-                        # Get next agent from execution plan
+                        # Get next agent from execution plan (for orchestrated graph)
                         execution_plan = state.get("execution_plan")
                         if execution_plan:
                             if isinstance(execution_plan, dict):
@@ -721,10 +847,41 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                                 update_data["execution_plan"] = execution_plan.dict()
                                 update_data["current_agent"] = next_agent
                                 return Command(goto=next_agent, update=update_data)
-                        
-                        return Command(goto="result_synthesis", update=update_data)
+                            else:
+                                # No next agent, go to result synthesis
+                                return Command(goto="result_synthesis", update=update_data)
+                        else:
+                            # Single agent graph, go to END
+                            return Command(goto=END, update=update_data)
+                    else:
+                        # No tools to execute
+                        execution_plan = state.get("execution_plan")
+                        if execution_plan:
+                            return Command(goto="result_synthesis", update={"pending_approval": None})
+                        else:
+                            return Command(goto=END, update={"pending_approval": None})
+
+                elif decision == "feedback":
+                    print(f"\n📝 FEEDBACK PROVIDED: '{feedback_data}'")
+                    print(f"Agent will revise the content based on your feedback...")
+                     
+                    # Return to the agent with feedback for revision
+                    # Store feedback in state and send back to agent
+                    update_data = {
+                        "messages": state.get("messages", []) + [
+                            HumanMessage(content=f"HUMAN FEEDBACK: {feedback_data}\n\nPlease revise your work based on this feedback:", name="human_feedback")
+                        ],
+                        "agent_results": {**state.get("agent_results", {}), agent_name: f"[FEEDBACK RECEIVED] {feedback_data}"},
+                        "pending_approval": None,  # Clear pending approval
+                        "human_feedback": feedback_data  # Store feedback for agent
+                    }
+                     
+                    # Send back to the agent for revision
+                    return Command(goto=agent_name, update=update_data)
                 
                 elif decision == "reject":
+                    print(f"\n❌ REJECTED: Tool execution skipped for {agent_name}")
+                    
                     # Record rejection
                     try:
                         from app.monitoring.streaming_monitor import get_global_streaming_monitor
@@ -761,23 +918,41 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                             update_data["execution_plan"] = execution_plan.dict()
                             update_data["current_agent"] = next_agent
                             return Command(goto=next_agent, update=update_data)
-                    
-                    return Command(goto="result_synthesis", update=update_data)
+                        else:
+                            # No next agent, go to result synthesis
+                            return Command(goto="result_synthesis", update=update_data)
+                    else:
+                        # Single agent graph, go to END
+                        return Command(goto=END, update=update_data)
                 
-                else:  # modify or other
-                    # For now, treat as rejection
-                    return Command(goto="result_synthesis", update={"pending_approval": None})
+                else:
+                    # Should not reach here
+                    execution_plan = state.get("execution_plan")
+                    if execution_plan:
+                        return Command(goto="result_synthesis", update={"pending_approval": None})
+                    else:
+                        return Command(goto=END, update={"pending_approval": None})
                     
             except Exception as e:
                 print(f"Human approval node failed: {e}")
                 # Clear pending approval and continue
-                return Command(
-                    goto="result_synthesis",
-                    update={
-                        "pending_approval": None,
-                        "error": f"Human approval failed: {e}"
-                    }
-                )
+                execution_plan = state.get("execution_plan") if 'state' in locals() else None
+                if execution_plan:
+                    return Command(
+                        goto="result_synthesis",
+                        update={
+                            "pending_approval": None,
+                            "error": f"Human approval failed: {e}"
+                        }
+                    )
+                else:
+                    return Command(
+                        goto=END,
+                        update={
+                            "pending_approval": None,
+                            "error": f"Human approval failed: {e}"
+                        }
+                    )
         
         return human_approval_node
     
