@@ -70,16 +70,20 @@ class OrchestrationState(MessagesState):
             return right
         if not right:
             return left
+        
+        # Helper to ensure we have objects
+        left_plan = left if isinstance(left, ExecutionPlan) else ExecutionPlan(**left)
+        right_plan = right if isinstance(right, ExecutionPlan) else ExecutionPlan(**right)
             
         # Merge completed_steps (union)
-        all_completed = list(set(left.completed_steps + right.completed_steps))
+        all_completed = list(set(left_plan.completed_steps + right_plan.completed_steps))
         
         # Use right (newest) plan as base but ensure we keep all completions
-        merged_plan = right.model_copy(deep=True)
+        merged_plan = right_plan.model_copy(deep=True)
         merged_plan.completed_steps = all_completed
         
         # Also ensure agent_results are merged if right didn't have them all
-        merged_results = {**left.agent_results, **right.agent_results}
+        merged_results = {**left_plan.agent_results, **right_plan.agent_results}
         merged_plan.agent_results = merged_results
         
         return merged_plan

@@ -180,7 +180,23 @@ class OrchestratedGraphBuilder:
             human_approval_node = self._create_human_approval_node()
             builder.add_node("human_approval", human_approval_node)
             builder.add_edge(agent_name, "human_approval")
-            builder.add_edge("human_approval", END)
+            
+            # Add conditional edge for feedback loop
+            # For single agent graphs, we need to handle the routing differently
+            def single_agent_router(state):
+                if state.get("human_feedback") and state.get("pending_approval", {}).get("agent") == agent_name:
+                    return agent_name
+                else:
+                    return END
+            
+            builder.add_conditional_edges(
+                "human_approval",
+                single_agent_router,
+                {
+                    agent_name: agent_name,  # Go back to agent if feedback was provided
+                    END: END  # Otherwise go to END
+                }
+            )
         else:
             builder.add_edge(agent_name, END)
         
@@ -251,8 +267,21 @@ class OrchestratedGraphBuilder:
         else:
             builder.add_edge("task_analysis", "result_synthesis")
         
-        # Human approval can go to result synthesis or back to the agent
-        builder.add_edge("human_approval", "result_synthesis")
+        # Add conditional edges for agents that require approval to go to human_approval node
+        for agent_name in worker_execution_order:
+            agent_config = self.get_agent_config(agent_name)
+            if agent_config and agent_config.require_approval and agent_config.tools:
+                # Agent goes to human approval if it requires approval
+                builder.add_edge(agent_name, "human_approval")
+                # Human approval can go back to the same agent for revision or to result synthesis
+                builder.add_conditional_edges(
+                    "human_approval",
+                    self._create_human_approval_router(agent_name),
+                    {
+                        agent_name: agent_name,  # Go back to agent if feedback was provided
+                        "result_synthesis": "result_synthesis"  # Otherwise go to result synthesis
+                    }
+                )
         
         builder.add_edge("result_synthesis", END)
         
@@ -616,7 +645,8 @@ Please complete this specific task."""
                     "messages": state.get("messages", []) + [
                         AIMessage(content=result, name=worker_name)
                     ],
-                    "agent_results": {worker_name: result}
+                    "agent_results": {worker_name: result},
+                    "human_feedback": None  # Clear feedback after processing to prevent infinite loops
                 }
                 
                 # Get next agent from execution plan if available
@@ -830,6 +860,23 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
         
         return supervisor_node
     
+    def _create_human_approval_router(self, agent_name: str):
+        """Create router function for human approval decisions"""
+        def router(state: Dict[str, Any]) -> str:
+            """Route based on human approval decision"""
+            # Check if feedback was provided for this specific agent
+            human_feedback = state.get("human_feedback")
+            pending_approval = state.get("pending_approval", {})
+            
+            # If feedback was provided and it's for the current agent, go back to agent for revision
+            if human_feedback and pending_approval.get("agent") == agent_name:
+                return agent_name
+            
+            # Otherwise, continue to result synthesis
+            return "result_synthesis"
+        
+        return router
+    
     def _create_human_approval_node(self):
         """Create node for human-in-the-loop approval"""
         async def human_approval_node(state: Dict[str, Any]) -> Command:
@@ -1003,7 +1050,7 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                 elif decision == "feedback":
                     print(f"\n📝 FEEDBACK PROVIDED: '{feedback_data}'")
                     print(f"Agent will revise the content based on your feedback...")
-                     
+                    
                     # Return to the agent with feedback for revision
                     # Store feedback in state and send back to agent
                     update_data = {
@@ -1014,8 +1061,9 @@ Output format: {{"next_node": "agent_name", "reasoning": "explanation", "confide
                         "pending_approval": None,  # Clear pending approval
                         "human_feedback": feedback_data  # Store feedback for agent
                     }
-                     
+                    
                     # Send back to the agent for revision
+                    # Note: The agent will go back to human approval after revision via conditional edge
                     return Command(goto=agent_name, update=update_data)
                 
                 elif decision == "reject":

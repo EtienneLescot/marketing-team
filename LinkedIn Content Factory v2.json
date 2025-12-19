@@ -1,0 +1,1555 @@
+{
+  "name": "LinkedIn Content Factory v2",
+  "nodes": [
+    {
+      "parameters": {
+        "jsonSchemaExample": "[\"Idée 1\", \"Idée 2\", \"Idée 3\"]"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        -368
+      ],
+      "id": "9a07f04f-9697-4029-9a9d-b0fd333df573",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -368
+      ],
+      "id": "e0d5c3ac-ac7a-4d4b-911a-10a041980664",
+      "name": "Search in Tavily2",
+      "credentials": {
+        "tavilyApi": {
+          "id": "yPJ1hAXQLB3rwHcW",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        1568,
+        -368
+      ],
+      "id": "19cc0736-9a0a-49b0-9fc3-255a40481afb",
+      "name": "Search in Tavily3",
+      "credentials": {
+        "tavilyApi": {
+          "id": "yPJ1hAXQLB3rwHcW",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        912,
+        -352
+      ],
+      "id": "b5e7f9d8-1d89-4ad5-a490-b9e1645207c7",
+      "name": "Search in Tavily4",
+      "credentials": {
+        "tavilyApi": {
+          "id": "yPJ1hAXQLB3rwHcW",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.output.brief }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a social media community manager.\nYou have to find some ideas ( maximum 5 ) for a LinkedIn post.\nUse the brief and search on internet for hot topics of late 2025."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        432,
+        -576
+      ],
+      "id": "d5e81642-5a21-4aad-8632-eb52883bd8e6",
+      "name": "Idea finder"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.output.prompt }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a seasoned content writer that generates LinkedIn posts.\nYou must search on internet ot get facts, news and data that will help you write a solid an usefull post."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1504,
+        -576
+      ],
+      "id": "8c7026e3-7756-4d29-97d9-d27def2282de",
+      "name": "Content writer"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=post ideas :\n{{ $json.output }}\n\nbrief reminder :\n{{ JSON.stringify($('BirefMaker').item.json.output.brief) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a social media community manager.\nyou have to pick the best idea according to late 2025 hottest topics and previously posted topics"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        832,
+        -576
+      ],
+      "id": "63eed656-7f8f-43c1-b022-80381af05f53",
+      "name": "Idea picker"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"selectedIdea\": {\n\t\t\t\"type\": \"string\"\n\t\t}\n\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1024,
+        -352
+      ],
+      "id": "02f4d6c7-080d-4de4-a6e2-543d85223e53",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        1888,
+        -368
+      ],
+      "id": "6dc8c61a-3189-44ef-b74e-b3cfa4b4f7ab",
+      "name": "Search in Tavily",
+      "credentials": {
+        "tavilyApi": {
+          "id": "yPJ1hAXQLB3rwHcW",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.output.postDraft }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a seasoned fact checker.\nYour goal is to search on internet to check facts, news and data contained in this given post.\nCorrect errors, remove wrong numbers and unverified data. adapt and rewrite the post as needed.\ntaylor your web researchs to avoid making more than 8 researchs.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1808,
+        -576
+      ],
+      "id": "c5f132b2-0f34-4d79-a51d-9a425204e189",
+      "name": "Fact checker"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"postDraft\": {\n\t\t\t\"type\": \"string\",\n            \"description\": \"Post content\"\n\t\t}\n\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1680,
+        -368
+      ],
+      "id": "68eb863c-05b2-4ee5-a8e3-c09b8470b31a",
+      "name": "Structured Output Parser2"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"checkedPost\": {\n      \"type\": \"string\",\n      \"description\": \"Full text after fact corrections\"\n    }\n  },\n  \"required\": [\n    \"checkedPost\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1984,
+        -368
+      ],
+      "id": "ae05922c-5e25-4a7f-9c07-99558042d7c1",
+      "name": "Structured Output Parser3"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=post :\n{{ $json.output.checkedPost }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a seasoned content writer with a personal and human style.\nYour goal is modify post style and form so that it do not look like an AI generated post.\nSearch on the internet what makes a post look like it has been made by an AI in late 2025.\nlimit your searchs to 5 maximum.\nAnd with the tips that you will find, revamp the post (without adding or modifying any fact or data) so that it looks human and original.\ndo not forget to end by a question and to add some hashtags if there is not already some."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2112,
+        -576
+      ],
+      "id": "86d09dc6-98ac-46dd-b951-331bc39182c3",
+      "name": "postPolisher"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"polishedPost\": {\n\t\t\t\"type\": \"string\",\n            \"description\": \"Full text after style corrections\"\n\t\t}\n\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2304,
+        -368
+      ],
+      "id": "4fc911db-5780-4262-b756-7c76231b6e6f",
+      "name": "Structured Output Parser4"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseMode": "responseNodes"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -304,
+        -576
+      ],
+      "id": "10df50fd-cfc7-4c10-b1c5-9294ef0e447e",
+      "name": "When chat message received",
+      "webhookId": "c69ba260-7fa3-4750-a7e7-c53fed7c3cd6"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a social media community manager.\nYour goal is to taylor a structured brief to make a linkedIn post.\nset geography and language accordingly to user message language."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        16,
+        -576
+      ],
+      "id": "e2c7ee5a-5ac8-4dba-98df-d5b3fec14f47",
+      "name": "BirefMaker"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"brief\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"audience\": {\n          \"type\": \"string\"\n        },\n        \"geography\": {\n          \"type\": \"string\"\n        },\n        \"goals\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"cta\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"topics\": {\n          \"type\": \"string\"\n        },\n        \"angles\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          }\n        },\n        \"tone\": {\n          \"type\": \"string\"\n        },\n        \"constraints\": {\n          \"type\": \"string\"\n        },\n        \"link\": {\n          \"type\": \"string\",\n          \"description\": \"Lien optionnel si présent\"\n        }\n      },\n      \"required\": [\n        \"audience\",\n        \"geography\",\n        \"goals\",\n        \"cta\",\n        \"topics\",\n        \"angles\",\n        \"tone\",\n        \"constraints\"\n      ]\n    }\n  },\n  \"required\": [\n    \"brief\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        -368
+      ],
+      "id": "b7cb278e-0c71-4fbc-8b33-094ac17bb469",
+      "name": "Structured Output Parser5"
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        2208,
+        -368
+      ],
+      "id": "37224c86-c489-4a28-9017-f8bf63224523",
+      "name": "Search in Tavily1",
+      "credentials": {
+        "tavilyApi": {
+          "id": "yPJ1hAXQLB3rwHcW",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=post idea :\n{{ $json.output.selectedIdea }}\n\nbrief reminder :\n{{ JSON.stringify($('BirefMaker').item.json.output.brief) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a seasoned prompt enginer.\nYou are using selected post idea and brief to taylor a strong prompt that will be used by the content writing AI agent"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1184,
+        -576
+      ],
+      "id": "02f4f228-aef4-4ad2-ac4a-9fc2779d3015",
+      "name": "Prompt maker"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"prompt\": {\n\t\t\t\"type\": \"string\"\n\t\t}\n\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1328,
+        -368
+      ],
+      "id": "9808319f-b7ce-4adb-8e88-81c7a1906b66",
+      "name": "Structured Output Parser6"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n        \"status\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"approved\",\n            \"rejected\",\n            \"modification required\"\n          ]\n    \t}\n    }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2848,
+        -384
+      ],
+      "id": "e999108a-7cd4-4abf-a3f8-4800d8ea0807",
+      "name": "Structured Output Parser8"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Tu dois prendre une décision, est-ce que le message reçu est une validation ou est-ce que l'utilisateur veut modifier le message"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2704,
+        -576
+      ],
+      "id": "9ad9c1d1-d4da-480e-9950-c9e4e6878067",
+      "name": "Arbitre"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=\"{{ $('postPolisher').item.json.output.polishedPost }}\"\n\n{{ $('Human text validation').item.json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Correct this message following the user's instructions. strictly change only what has been requested by the user. leave the rest perfectly intact."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        3168,
+        -400
+      ],
+      "id": "0a7a04d1-f7b1-464c-ad28-5ff5b83a578e",
+      "name": "Correcteur"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "approved",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8bc47bd8-7bd8-456b-b05f-2f63d3471812"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "416c64e1-c7fd-4188-8e91-0ec5ab1a3bcc",
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "rejected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "37bf9a02-4f9e-4a3c-a94d-22b3c2e19009",
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "modification required",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        3056,
+        -592
+      ],
+      "id": "3a0617f5-896a-40e2-bfbc-77ad21a46bd8",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "message": "Message validé, Merci !\nCréation de l'image du post en cours...",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        3296,
+        -864
+      ],
+      "id": "75a214b5-1eb7-4f22-aeb9-d28d2f425320",
+      "name": "Confirmation de validation"
+    },
+    {
+      "parameters": {
+        "message": "Message rejeté :-(",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        3216,
+        -576
+      ],
+      "id": "74106358-351b-46dc-9b3e-af8f757bab5b",
+      "name": "Confirmation de rejet"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"polishedPost\": {\n\t\t\t\"type\": \"string\",\n            \"description\": \"The text with modifications asked by the user\"\n\t\t}\n\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        3312,
+        -176
+      ],
+      "id": "04e50f6e-7894-4804-b4f2-b008a1e9d240",
+      "name": "Structured Output Parser7"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        752,
+        96
+      ],
+      "id": "624be74d-477b-4d51-a23b-1df6f96af0b2",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "a8zNvYdrEhnWIzmy",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "postAs": "organization",
+        "organization": "110163013",
+        "text": "={{ $('postPolisher').item.json.output.polishedPost }}",
+        "shareMediaCategory": "IMAGE",
+        "binaryPropertyName": "=data",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        5376,
+        -1072
+      ],
+      "id": "4c18ba62-a3c7-41cf-9ee8-b1328b374174",
+      "name": "Create a post2",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "uaT0xHl72rwxthwS",
+          "name": "LinkedIn account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "model": "gpt-image-1",
+        "prompt": "={{ $json.output.imagePrompt }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        3888,
+        -864
+      ],
+      "id": "d06350e5-ee0c-49b0-a706-baf1f9e9d0d5",
+      "name": "Generate an image",
+      "credentials": {
+        "openAiApi": {
+          "id": "a8zNvYdrEhnWIzmy",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('postPolisher').item.json.output.polishedPost }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a prompt engineer specialized in image prompt generation.\ncreate a prompt for an image illustrating given post.\nuse latest graphic trends, avoid illustration styles that everybody is using.\nMake one or two searches on internet to find the best style fit."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        3536,
+        -864
+      ],
+      "id": "5a054ab5-ae4a-476a-b605-6da332bc3994",
+      "name": "Image prompt creator"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        3840,
+        -256
+      ],
+      "id": "bedac6ad-aaab-42fc-867f-b994c6a96e31",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "a8zNvYdrEhnWIzmy",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.output.polishedPost }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        2480,
+        -576
+      ],
+      "id": "eb4a3c20-e5df-4039-a599-80acc5e2ce3a",
+      "name": "Human text validation"
+    },
+    {
+      "parameters": {
+        "name": "linkedInPost.png",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "root",
+          "mode": "list",
+          "cachedResultName": "/ (Root folder)",
+          "cachedResultUrl": "https://drive.google.com/drive"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4048,
+        -864
+      ],
+      "id": "8deeeb38-6cbc-4e4e-b4ab-181d544ba391",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ILbSwWPMgVWkLQkX",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"imagePrompt\": {\n\t\t\t\"type\": \"string\"\n\t\t}\n\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        3680,
+        -688
+      ],
+      "id": "5e3a7c6e-c61c-4d27-aade-ac3604a080a1",
+      "name": "Structured Output Parser14"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n        \"status\": {\n          \"type\": \"string\",\n          \"enum\": [\n            \"approved\",\n            \"rejected\",\n            \"modification required\"\n          ]\n    \t}\n    }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        4560,
+        -688
+      ],
+      "id": "b29ee6cb-7f35-42a9-aaf0-c7854e8cbe07",
+      "name": "Structured Output Parser10"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Human image validation').item.json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Correct this prompt using the user feedback\n\n{{ $('Image prompt creator').item.json.output.imagePrompt }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        4928,
+        -704
+      ],
+      "id": "28d66870-1a02-42d3-92f7-1077496d57b3",
+      "name": "Correcteur2"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "approved",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "8bc47bd8-7bd8-456b-b05f-2f63d3471812"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "416c64e1-c7fd-4188-8e91-0ec5ab1a3bcc",
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "rejected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "37bf9a02-4f9e-4a3c-a94d-22b3c2e19009",
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "modification required",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        4736,
+        -880
+      ],
+      "id": "fda27636-2768-466c-a305-83d45bfeb247",
+      "name": "Switch2"
+    },
+    {
+      "parameters": {
+        "message": "Image validée, Merci !\nLe post va être publié.",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        4992,
+        -1152
+      ],
+      "id": "0ab0fa57-3c92-4ac8-af23-4863a2d970ae",
+      "name": "Confirmation de validation2"
+    },
+    {
+      "parameters": {
+        "message": "Image rejeté :-(\nLe post va être publié sans image",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        5056,
+        -880
+      ],
+      "id": "8a6cb6e1-988a-474d-a848-0722bd567c2d",
+      "name": "Confirmation de rejet2"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"imagePrompt\": {\n\t\t\t\"type\": \"string\"\n\t\t}\n\t}\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        5072,
+        -496
+      ],
+      "id": "30d43ba0-549e-4ca6-9cf9-dcfe8f59f5f4",
+      "name": "Structured Output Parser15"
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.webViewLink }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        4240,
+        -864
+      ],
+      "id": "bfeb7be8-1ea2-48f4-9f07-9ce6f9e47c93",
+      "name": "Human image validation"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Tu dois prendre une décision, est-ce que le message reçu est une validation, un rejet ou est-ce que l'utilisateur veut modifier l'image."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        4416,
+        -864
+      ],
+      "id": "ed3279d4-a64a-4085-a7a0-fe0aca5a15d0",
+      "name": "Arbitre 2"
+    },
+    {
+      "parameters": {
+        "postAs": "organization",
+        "organization": "110163013",
+        "text": "={{ $('postPolisher').item.json.output.polishedPost }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        5376,
+        -880
+      ],
+      "id": "96d10f71-09d3-4f03-992a-2d9ffe8d2ee1",
+      "name": "Create a post",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "uaT0xHl72rwxthwS",
+          "name": "LinkedIn account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        5216,
+        -1072
+      ],
+      "id": "aad4023b-65a2-4808-8c28-a6a3346bc7ba",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.2-chat-latest",
+          "mode": "list",
+          "cachedResultName": "gpt-5.2-chat-latest"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1856,
+        112
+      ],
+      "id": "06d8d367-d443-4156-bb25-595bf01b8e78",
+      "name": "OpenAI Chat Model3",
+      "credentials": {
+        "openAiApi": {
+          "id": "a8zNvYdrEhnWIzmy",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        3568,
+        -688
+      ],
+      "id": "23a9a8f5-e0c1-42dd-b2f0-f69684411918",
+      "name": "Search in Tavily5",
+      "credentials": {
+        "tavilyApi": {
+          "id": "yPJ1hAXQLB3rwHcW",
+          "name": "Tavily account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Idea finder",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily2": {
+      "ai_tool": [
+        [
+          {
+            "node": "Idea finder",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily3": {
+      "ai_tool": [
+        [
+          {
+            "node": "Content writer",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily4": {
+      "ai_tool": [
+        [
+          {
+            "node": "Idea picker",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Idea finder": {
+      "main": [
+        [
+          {
+            "node": "Idea picker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content writer": {
+      "main": [
+        [
+          {
+            "node": "Fact checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Idea picker": {
+      "main": [
+        [
+          {
+            "node": "Prompt maker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Idea picker",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily": {
+      "ai_tool": [
+        [
+          {
+            "node": "Fact checker",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser2": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Content writer",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser3": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Fact checker",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser4": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "postPolisher",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fact checker": {
+      "main": [
+        [
+          {
+            "node": "postPolisher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser5": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "BirefMaker",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "BirefMaker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily1": {
+      "ai_tool": [
+        [
+          {
+            "node": "postPolisher",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BirefMaker": {
+      "main": [
+        [
+          {
+            "node": "Idea finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser6": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Prompt maker",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt maker": {
+      "main": [
+        [
+          {
+            "node": "Content writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "postPolisher": {
+      "main": [
+        [
+          {
+            "node": "Human text validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser8": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Arbitre",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbitre": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Confirmation de validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirmation de rejet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Correcteur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Correcteur": {
+      "main": [
+        [
+          {
+            "node": "Human text validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser7": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Correcteur",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "BirefMaker",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Idea finder",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Idea picker",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Prompt maker",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Correcteur",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Arbitre",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a post2": {
+      "main": [
+        []
+      ]
+    },
+    "Confirmation de validation": {
+      "main": [
+        [
+          {
+            "node": "Image prompt creator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Image prompt creator",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Correcteur2",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Arbitre 2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image prompt creator": {
+      "main": [
+        [
+          {
+            "node": "Generate an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human text validation": {
+      "main": [
+        [
+          {
+            "node": "Arbitre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate an image": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser14": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Image prompt creator",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "Human image validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser10": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Arbitre 2",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch2": {
+      "main": [
+        [
+          {
+            "node": "Confirmation de validation2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirmation de rejet2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Correcteur2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser15": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Correcteur2",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Correcteur2": {
+      "main": [
+        [
+          {
+            "node": "Generate an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human image validation": {
+      "main": [
+        [
+          {
+            "node": "Arbitre 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbitre 2": {
+      "main": [
+        [
+          {
+            "node": "Switch2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmation de validation2": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmation de rejet2": {
+      "main": [
+        [
+          {
+            "node": "Create a post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "Create a post2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Content writer",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Fact checker",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "postPolisher",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search in Tavily5": {
+      "ai_tool": [
+        [
+          {
+            "node": "Image prompt creator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "d345e1d7-e6ef-46cc-a1ed-aef1b7cd68fa",
+  "meta": {
+    "templateId": "7549",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "edd25271aa625c76cdf6d84b2348166a32e5f283c2b13fa889b33e5c5a59d611"
+  },
+  "id": "GwwKN06mo3sLYhFp",
+  "tags": []
+}
