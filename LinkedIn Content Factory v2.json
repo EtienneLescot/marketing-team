@@ -547,7 +547,7 @@
     {
       "parameters": {
         "postAs": "organization",
-        "organization": "110163013",
+        "organization": "110149792",
         "text": "={{ $('postPolisher').item.json.output.polishedPost }}",
         "shareMediaCategory": "IMAGE",
         "binaryPropertyName": "=data",
@@ -579,7 +579,7 @@
       "typeVersion": 2.1,
       "position": [
         3888,
-        -864
+        -1072
       ],
       "id": "d06350e5-ee0c-49b0-a706-baf1f9e9d0d5",
       "name": "Generate an image",
@@ -596,7 +596,7 @@
         "text": "={{ $('postPolisher').item.json.output.polishedPost }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "=You are a prompt engineer specialized in image prompt generation.\ncreate a prompt for an image illustrating given post.\nuse latest graphic trends, avoid illustration styles that everybody is using.\nMake one or two searches on internet to find the best style fit."
+          "systemMessage": "=You are a prompt engineer specialized in image prompt generation.\ncreate a prompt for an image illustrating given post.\nuse latest graphic trends, avoid illustration styles that everybody is using.\nMake one or two searches on internet to find the best style fit.\nI like Claymorphism, handdraw, collages\n"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -1544,7 +1544,7 @@
   },
   "active": false,
   "settings": {},
-  "versionId": "d345e1d7-e6ef-46cc-a1ed-aef1b7cd68fa",
+  "versionId": "bf6efaa5-4c3d-427c-a4cd-8638399efe98",
   "meta": {
     "templateId": "7549",
     "templateCredsSetupCompleted": true,
